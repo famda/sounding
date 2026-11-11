@@ -9,7 +9,8 @@ COPY docs/product/screenshots/seed/ docs/product/screenshots/seed/
 RUN dotnet publish docs/product/screenshots/seed/Sounding.Demo.csproj -c Release -r linux-x64 --self-contained true --no-restore -o /seed
 
 FROM mcr.microsoft.com/playwright:v1.56.1-noble
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg
+# A static build from Docker Hub instead of apt: Ubuntu's archive does not resolve from GitHub-hosted builds.
+COPY --from=mwader/static-ffmpeg:7.1.1 /ffmpeg /usr/local/bin/ffmpeg
 WORKDIR /capture
 COPY docs/product/screenshots/package.json docs/product/screenshots/package-lock.json ./
 RUN npm ci --no-audit --no-fund

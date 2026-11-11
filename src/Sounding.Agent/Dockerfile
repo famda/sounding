@@ -4,7 +4,7 @@
 # or run this image alone with pid: host to sample the host.
 
 FROM alpine:3.22 AS build
-RUN apk add --no-cache bash curl ca-certificates clang build-base linux-headers zlib-dev libstdc++ \
+RUN apk add --no-cache bash curl ca-certificates clang build-base linux-headers zlib-dev libstdc++ libcap \
     && curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 11.0.100 --install-dir /usr/share/dotnet
 ENV PATH=/usr/share/dotnet:$PATH DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 WORKDIR /src
@@ -20,6 +20,7 @@ RUN dotnet publish src/Sounding.Agent/Sounding.Agent.csproj -c Release -r linux-
     && cp -L /lib/ld-musl-x86_64.so.1 sounding-agent \
     && cp -L /usr/lib/libssl.so.3 /usr/lib/libcrypto.so.3 . \
     && gcc -O2 -s -Wall -static -o /opt/sounding/net-meter /src/src/Sounding.Agent/Native/netmeter.c \
+    && setcap cap_net_raw=ep /opt/sounding/net-meter \
     && gcc -Os -s -Wall -static -o /opt/sounding/run /src/src/Sounding.Agent/Native/launcher.c
 
 FROM nvidia/cuda:12.6.3-devel-ubuntu24.04 AS gpu-meter
@@ -31,11 +32,10 @@ RUN gcc -O2 -s -fPIC -shared -o libgpumeter.so gpumeter.c \
     && cp -L /usr/local/cuda/lib64/libcupti.so.12 .
 
 # glibc base, for the nvidia-smi the NVIDIA runtime injects when the image runs alone on a GPU host.
+# net-meter's capability is set in the build stage (COPY keeps it): Ubuntu's archive does not resolve from
+# GitHub-hosted builds, so this stage installs nothing.
 FROM ubuntu:24.04
 COPY --from=build /opt/sounding /opt/sounding
 COPY --from=gpu-meter /src/libgpumeter.so /src/libcupti.so.12 /opt/sounding/
-RUN apt-get update && apt-get install -y --no-install-recommends libcap2-bin \
-    && setcap cap_net_raw=ep /opt/sounding/net-meter \
-    && apt-get purge -y libcap2-bin && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 USER ubuntu
 ENTRYPOINT ["/opt/sounding/run"]
