@@ -15,8 +15,15 @@ export function Navigation({
   let pathname = normalizePathname(usePathname())
   let activeLinkRef = useRef<HTMLAnchorElement>(null)
 
+  // scrollIntoView would also scroll the window, hiding the top of the page (the hero on the home page).
   useEffect(() => {
-    activeLinkRef.current?.scrollIntoView({ block: 'center' })
+    let link = activeLinkRef.current
+    let container = link?.closest<HTMLElement>('.overflow-y-auto')
+    if (!link || !container) return
+    let linkBox = link.getBoundingClientRect()
+    let containerBox = container.getBoundingClientRect()
+    container.scrollTop +=
+      linkBox.top - containerBox.top - (container.clientHeight - linkBox.height) / 2
   }, [pathname])
 
   return (
