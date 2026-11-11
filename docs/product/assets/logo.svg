@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Gray Cube Faces -->
+    <linearGradient id="g-top" x1="14" y1="13" x2="50" y2="33.8" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#64748b" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#475569" stop-opacity=".36"/>
+    </linearGradient>
+    <linearGradient id="g-left" x1="14" y1="23.4" x2="32" y2="51" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#475569" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#334155" stop-opacity=".48"/>
+    </linearGradient>
+    <linearGradient id="g-right" x1="32" y1="23.4" x2="50" y2="51" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#334155" stop-opacity=".44"/>
+      <stop offset="1" stop-color="#1e293b" stop-opacity=".56"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="32" cy="33" r="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2dd4bf" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Exact Sea Gradients -->
+    <linearGradient id="w1l" x1="9" y1="34" x2="32" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <linearGradient id="w1r" x1="32" y1="53" x2="55" y2="34" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="w2l" x1="15" y1="45" x2="32" y2="61" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#5eead4"/>
+    </linearGradient>
+    <linearGradient id="w2r" x1="32" y1="61" x2="49" y2="45" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#0369a1"/>
+    </linearGradient>
+
+    <clipPath id="ext-shaft">
+      <path d="M28 0H36V22.39L32 24.702 28 22.39Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- 1. 3 Distinct Back Cube Faces + Thinner (0.6px) 2-Faced Back Y-Edge Lines + Hole Dark Interior -->
+  <path d="M14 23.4 32 13V30.2L14 40.6Z" fill="#475569" fill-opacity=".16"/>
+  <path d="M50 23.4 32 13V30.2L50 40.6Z" fill="#1e293b" fill-opacity=".22"/>
+  <path d="M14 40.6 32 30.2 50 40.6 32 51Z" fill="#0f172a" fill-opacity=".28"/>
+  <path d="M31.7 13.519 32 13.346V30.2L14.3 40.427V40.081L31.7 30.027ZM32 30.2 32.3 30.027 49.7 40.081V40.427Z" fill="#cbd5e1" fill-opacity=".35"/>
+  <path d="M32 13.346 32.3 13.519V30.027L32 30.2ZM14.3 40.427 32 30.2 49.7 40.427 49.4 40.6 32 30.546 14.6 40.6Z" fill="#64748b" fill-opacity=".32"/>
+  <path d="M32 21.78 34.8 23.4 32 25.02 29.2 23.4Z" fill="#090d16" fill-opacity=".7"/>
+
+  <!-- 2. INTERNAL PROBE + GLOW -->
+  <circle cx="32" cy="33" r="12" fill="url(#glow)"/>
+  <path d="M27.4 29.4 32 26.74V27.42L31 28Z" fill="#99f6e4"/>
+  <path d="M36.6 29.4 32 26.74V27.42L33 28Z" fill="#5eead4"/>
+  <path d="M27.4 29.4 31 28 32 28.58V32.06Z" fill="#5eead4"/>
+  <path d="M36.6 29.4 33 28 32 28.58V32.06Z" fill="#2dd4bf"/>
+  <path d="M27.4 29.4 32 32.06V39.4Z" fill="#14b8a6"/>
+  <path d="M36.6 29.4 32 32.06V39.4Z" fill="#0d9488"/>
+  <path d="M27.4 29.4 27.9 29.21 31.75 31.435V28.435L32 28.58 32.25 28.435V31.435L36.1 29.21 36.6 29.4 32 32.06Z" fill="#ccfbf1" fill-opacity=".45"/>
+  <path d="M31 24.12 32 24.702V28.58L31 28Z" fill="#5eead4"/>
+  <path d="M33 24.12 32 24.702V28.58L33 28Z" fill="#14b8a6"/>
+
+  <!-- 3. Gray Cube Faces + Thinner (0.6px) Outer Border & (0.55px) Hole Edge + Stronger Thinner (0.6px) 2-Shaded Front Y-Edge -->
+  <path d="M32 13 50 23.4 32 33.8 14 23.4Z M32 21.78 34.8 23.4 32 25.02 29.2 23.4Z" fill="url(#g-top)" fill-rule="evenodd"/>
+  <path d="M14 23.4 32 33.8V51L14 40.6Z" fill="url(#g-left)"/>
+  <path d="M50 23.4 32 33.8V51L50 40.6Z" fill="url(#g-right)"/>
+  <path d="M32 21.78 34.8 23.4 32 25.02 29.2 23.4Z" stroke="#cbd5e1" stroke-opacity=".46" stroke-width=".55" stroke-linejoin="round"/>
+  <path d="M32 13 50 23.4V40.6L32 51 14 40.6V23.4Z" stroke="#cbd5e1" stroke-opacity=".52" stroke-width=".6" stroke-linejoin="round"/>
+  <path d="M14.3 23.573 14.6 23.4 32 33.454 49.4 23.4 49.7 23.573V23.919L32.3 33.973V48H31.7V33.973L14.3 23.919Z" fill="#cbd5e1" fill-opacity=".4"/>
+
+  <!-- 4. External Sunlit Shaft above the hole's front lip -->
+  <g clip-path="url(#ext-shaft)">
+    <path d="M31 3.5 32 4.08V25.5L31 24.92Z" fill="#99f6e4"/>
+    <path d="M33 3.5 32 4.08V25.5L33 24.92Z" fill="#14b8a6"/>
+    <path d="M32 2.92 33 3.5 32 4.08 31 3.5Z" fill="#5eead4"/>
+  </g>
+
+  <!-- 5. Sea Layers Overlapping Lower Hull -->
+  <path d="M9.5 35 32 48V53.5L9.5 40.5Z" fill="url(#w1l)"/>
+  <path d="M54.5 35 32 48V53.5L54.5 40.5Z" fill="url(#w1r)"/>
+  <path d="M15.5 45.5 32 55V59.8L15.5 50.3Z" fill="url(#w2l)" opacity=".9"/>
+  <path d="M48.5 45.5 32 55V59.8L48.5 50.3Z" fill="url(#w2r)" opacity=".9"/>
+</svg>
+

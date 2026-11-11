@@ -1,0 +1,78 @@
+# Repository metadata and agent tooling
+.scratch
+.git
+.github
+.agents
+.claude
+.codex
+**/AGENTS.md
+**/CLAUDE.md
+
+# Local configuration and persisted service data
+**/*.env
+**/.env.*
+**/*.env.*
+.data
+**/.aws
+**/.ssh
+
+# .NET build outputs
+**/[Bb]in
+**/[Oo]bj
+**/*.user
+**/*.suo
+
+# JavaScript dependencies and generated outputs
+**/node_modules
+**/dist
+**/out
+**/.next
+**/.nuxt
+**/.vite
+**/.turbo
+**/*.tsbuildinfo
+
+# Python environments, caches, and package outputs
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/venv
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.egg-info
+**/.ipynb_checkpoints
+
+# Test and browser artifacts (test source remains included)
+**/test-results
+**/TestResults
+**/coverage
+**/.coverage
+**/.coverage.*
+**/htmlcov
+**/.playwright-cli
+**/playwright-report
+**/blob-report
+
+# Editor and operating-system files
+**/.vs
+**/.idea
+**/.vscode
+**/.DS_Store
+**/Thumbs.db
+
+# Logs, tool caches, keys and certificates
+**/*.log
+**/.npm
+**/.eslintcache
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.p12
+
+# Not used by builds from the repository root (the samples and docs site build from their own folders)
+samples
+docs/product/assets
+docs/product/content
+docs/product/site
+docs/technical

@@ -1,0 +1,22 @@
+name: sounding-docs-site
+
+services:
+  build:
+    build: .
+    network_mode: none
+    volumes:
+      - ../content:/input/content:ro
+      - ../assets:/input/assets:ro
+      - ./dist:/app/dist
+  preview:
+    image: sounding-docs-site-build
+    build: .
+    init: true
+    ports:
+      - "127.0.0.1:${SOUNDING_DOCS_PORT:-4321}:4321"
+    volumes:
+      - ./dist:/app/dist:ro
+    entrypoint: ["node", "scripts/serve.mjs"]
+    command: ["--port", "4321"]
+    environment:
+      NEXT_PUBLIC_BASE_PATH: /sounding

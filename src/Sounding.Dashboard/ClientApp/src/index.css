@@ -1,0 +1,146 @@
+@import "tailwindcss";
+@import "inter-ui/inter-variable.css";
+
+@theme {
+  --color-bg: #0a0a0c;
+  --color-surface: #111114;
+  --color-surface-2: #18181c;
+  --color-surface-3: #222228;
+  --color-line: #222228;
+  --color-line-2: #2e2e36;
+  --color-text: #f4f4f6;
+  --color-text-2: #a1a1aa;
+  --color-muted: #6e6e7a;
+
+  --color-usage: #5b8def;
+  --color-second: #2dd4bf;
+  --color-limit: #fb923c;
+  --color-warn: #f59e0b;
+  --color-crit: #ef4444;
+  --color-ok: #22c55e;
+
+  --color-grid: #1c1c22;
+  --color-axis: #6e6e7a;
+  --color-other: #3f3f46;
+
+  --color-map-internet: #a78bfa;
+  --color-map-host: #fbbf24;
+
+  --font-sans: InterVariable, Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans--font-feature-settings: "cv11";
+  --font-mono: InterVariable, Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono--font-feature-settings: "cv11", "tnum";
+
+  --animate-tip-in: tip-in 120ms ease-out;
+
+  @keyframes tip-in {
+    from {
+      opacity: 0;
+      transform: translateY(-2px);
+    }
+  }
+}
+
+:root {
+  --heat-0: #18181d;
+  --heat-1: #1b2230;
+  --heat-2: #1f2d44;
+  --heat-3: #253b5e;
+  --heat-4: #2d4b7a;
+  --heat-5: #38609c;
+  --heat-6: #4776bf;
+  --heat-7: #5b8def;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f4f4f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #fafafa;
+  --color-surface-3: #e4e4e7;
+  --color-line: #e4e4e7;
+  --color-line-2: #d4d4d8;
+  --color-text: #18181b;
+  --color-text-2: #52525b;
+  --color-muted: #71717a;
+
+  --color-usage: #4f7fe6;
+  --color-second: #0d9488;
+  --color-limit: #ea580c;
+  --color-warn: #d97706;
+  --color-crit: #dc2626;
+  --color-ok: #16a34a;
+
+  --color-grid: #ececef;
+  --color-axis: #71717a;
+  --color-other: #b4b4bb;
+
+  --color-map-internet: #7c3aed;
+  --color-map-host: #b45309;
+
+  --heat-0: #f1f1f3;
+  --heat-1: #e3e8f2;
+  --heat-2: #d0dcf3;
+  --heat-3: #b9cbf2;
+  --heat-4: #a0b9f1;
+  --heat-5: #86a6ef;
+  --heat-6: #6d96ee;
+  --heat-7: #5b8def;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background: var(--color-line-2) padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-muted);
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-line-2) transparent;
+    }
+  }
+}
+
+.recharts-wrapper *:focus {
+  outline: none;
+}
+
+/* A packet on the map, moving along its edge (offset-path is set inline). */
+.map-packet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* The lines' labels over the packets that pass under them. */
+.react-flow__edgelabel-renderer {
+  z-index: 5;
+}

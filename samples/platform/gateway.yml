@@ -1,0 +1,21 @@
+http:
+  routers:
+    catalog:
+      rule: PathPrefix(`/api/catalog`)
+      service: catalog
+    orders:
+      rule: PathPrefix(`/api/orders`)
+      service: orders
+    assistant:
+      rule: PathPrefix(`/api/assistant`)
+      service: assistant
+  services:
+    catalog:
+      loadBalancer:
+        servers: [{ url: http://catalog-api:8080 }]
+    orders:
+      loadBalancer:
+        servers: [{ url: http://orders-api:8080 }]
+    assistant:
+      loadBalancer:
+        servers: [{ url: http://assistant-api:8080 }]

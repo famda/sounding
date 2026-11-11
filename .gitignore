@@ -1,0 +1,98 @@
+# Disposable investigation files
+/.scratch/
+/.playwright-cli/
+
+# Local link created by `platform.ps1 setup`; .agents/skills is the source
+/.claude/skills
+
+# Persisted local service data
+.data/
+
+# Build and dependency outputs
+[Bb]in/
+[Oo]bj/
+out/
+dist/
+node_modules/
+.next/
+*.tsbuildinfo
+
+# Generated documentation captures; keep the README preview and SVG source assets
+/docs/product/assets/*.png
+/docs/product/assets/*.gif
+!/docs/product/assets/overview.gif
+/docs/product/assets/*.png.tmp
+/docs/product/assets/*.gif.tmp
+
+# Python environments, caches, and packaging outputs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Environment and local secrets
+*.env
+.env.*
+*.env.*
+!example.env
+!.env.example
+!*.env.example
+
+# Test and browser artifacts
+test-results/
+coverage/
+TestResults/
+.playwright-cli/
+playwright-report/
+blob-report/
+.coverage
+.coverage.*
+htmlcov/
+
+# IDE and OS files
+.vs/
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# agents
+.agents/
+.claude/
+.github/copilot-instructions.md
+AGENTS.md
+CLAUDE.md
+
+# local documentation
+/docs/technical/architecture.md
+
+# Documentation site: files the build generates from docs/product/content and assets
+/docs/product/site/public/
+/docs/product/site/src/app/*/
+/docs/product/site/src/app/page.md
+
+# Logs and tool caches
+*.log
+npm-debug.log*
+.npm/
+.eslintcache
+.vite/
+.turbo/
+
+# Keys and certificates
+*.pem
+*.key
+*.pfx
+*.p12
+.codex/

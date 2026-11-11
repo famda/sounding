@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="src/Sounding.Shared/Sounding.Shared.csproj" />
+  <Folder Name="/docs/" />
+  <Folder Name="/docs/product/" />
+  <Folder Name="/docs/product/screenshots/" />
+  <Folder Name="/docs/product/screenshots/seed/">
+    <Project Path="docs/product/screenshots/seed/Sounding.Demo.csproj" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Project Path="src/Sounding.Agent/Sounding.Agent.csproj" />
+  <Project Path="src/Sounding.Dashboard/Sounding.Dashboard.csproj" />
+</Solution>

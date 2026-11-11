@@ -1,0 +1,170 @@
+# A small shop platform, each container wrapped with the agent, reporting to the stack in ../docker-compose.yml.
+#
+#   users (outside, no agent) ─▶ host port 8088
+#     ─▶ proxy (nginx) ─┬─▶ ui (node, renders pages server-side) ─┐
+#                       └──────────── /api/* ────────────────────┴─▶ gateway (traefik)
+#   gateway ─▶ catalog-api ─▶ cache (redis), sqlserver
+#           ─▶ orders-api  ─▶ catalog-api, sqlserver
+#           ─▶ assistant-api ─▶ ollama (GPU)
+#
+# From the repository root, with the stack running:
+#   docker compose -f samples/docker-compose.yml --env-file .env up -d --build
+# Add --profile gpu for ollama and assistant-api (NVIDIA GPU); platform.ps1 start adds it when nvidia-smi finds one.
+# Ollama is the only sample with GPU access, so without it the dashboard reports no GPU.
+name: sounding-samples
+
+x-agent: &agent
+  SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding;Username=sounding;Password=${SOUNDING_DB_PASSWORD:?run with --env-file .env};Keepalive=10"
+  SOUNDING_HOST_DISPLAY_NAME: ${SOUNDING_HOST_DISPLAY_NAME:-}
+
+x-agent-image: &agent-image
+  "famda/sounding:agent-latest": service:agent
+
+x-agent-volumes: &agent-volumes
+  - /proc:/host/proc:ro
+  - ${SOUNDING_HOST_DISK_MOUNT:-/var/lib/sounding/disk}:/host/disk:ro
+
+x-sample: &sample
+  networks: [sounding]
+  environment: *agent
+  volumes: *agent-volumes
+  deploy: { resources: { limits: { cpus: "1", memory: 512M } } }
+  # Optional (SOUNDING_SAMPLES_CAP_ADD in .env): SYS_PTRACE lets the agent read processes another user runs. Unset, it
+  # adds AUDIT_WRITE, which Docker grants anyway, so nothing changes.
+  cap_add: ["${SOUNDING_SAMPLES_CAP_ADD:-AUDIT_WRITE}"]
+  restart: unless-stopped
+
+x-api: &api
+  <<: *sample
+  build: { context: api, additional_contexts: *agent-image }
+  depends_on: [sqlserver, cache]
+
+x-api-env: &api-env
+  <<: *agent
+  SQL_PASSWORD: Sounding-Sample-1
+
+services:
+  # Builds the agent image the samples copy it from; runs nothing.
+  agent:
+    build: { context: .., dockerfile: src/Sounding.Agent/Dockerfile }
+    image: famda/sounding:agent-latest
+    deploy: { replicas: 0 }
+
+  # Simulated customers, outside the platform: from a network of their own, through the shop's published port, so
+  # their requests reach the proxy from the host, as a real visitor's would. Not part of the platform: no agent.
+  users:
+    image: curlimages/curl:8.23.0
+    networks: [outside]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on: [proxy]
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - |
+        n=0
+        while :; do
+          n=$$((n + 1))
+          item=$$((n % 24 + 1))
+          curl -s -o /dev/null http://host.docker.internal:8088/
+          curl -s -o /dev/null http://host.docker.internal:8088/api/catalog/items/$$item
+          curl -s -o /dev/null -H 'content-type: application/json' -d "{\"item\": $$item, \"qty\": 2}" http://host.docker.internal:8088/api/orders
+          curl -s -o /dev/null http://host.docker.internal:8088/api/orders
+          [ $$((n % 10)) -eq 0 ] && curl -s -o /dev/null -H 'content-type: application/json' \
+            -d '{"prompt": "Suggest a gift under 20 euros in one sentence."}' http://host.docker.internal:8088/api/assistant
+          sleep 3
+        done
+
+  # Public entry point: pages to the UI, /api/ to the gateway.
+  proxy:
+    <<: *sample
+    build: { context: ., args: { BASE: "nginx:1.31.8-alpine" }, additional_contexts: *agent-image }
+    entrypoint: ["/opt/sounding/run", "/docker-entrypoint.sh"]
+    command: ["nginx", "-g", "daemon off;"]
+    configs: [{ source: proxy, target: /etc/nginx/conf.d/default.conf }]
+    depends_on: [ui, gateway]
+    ports: ["8088:80"]
+
+  ui:
+    <<: *sample
+    build: { context: ., args: { BASE: "node:26.13.0-alpine" }, additional_contexts: *agent-image }
+    entrypoint: ["/opt/sounding/run", "node", "/app/server.mjs"]
+    configs: [{ source: ui, target: /app/server.mjs }]
+    depends_on: [gateway]
+
+  gateway:
+    <<: *sample
+    build: { context: ., args: { BASE: "traefik:v3.7.18" }, additional_contexts: *agent-image }
+    entrypoint: ["/opt/sounding/run", "/entrypoint.sh"]
+    command:
+      - traefik
+      - --entrypoints.web.address=:80
+      - --providers.file.filename=/etc/traefik/routes.yml
+      - --global.sendanonymoususage=false
+    configs: [{ source: gateway, target: /etc/traefik/routes.yml }]
+    depends_on: [catalog-api, orders-api]
+
+  # One API image, three services: each gets only its own routes from the gateway.
+  catalog-api:
+    <<: *api
+    environment: { <<: *api-env, API_ROLE: catalog }
+
+  orders-api:
+    <<: *api
+    environment: { <<: *api-env, API_ROLE: orders }
+
+  assistant-api:
+    <<: *api
+    profiles: [gpu]
+    depends_on: [ollama]
+    environment: { <<: *api-env, API_ROLE: assistant, OLLAMA_MODEL: "gemma3:270m" }
+
+  cache:
+    <<: *sample
+    build: { context: ., args: { BASE: "redis:8.10.3" }, additional_contexts: *agent-image }
+    entrypoint: ["/opt/sounding/run", "docker-entrypoint.sh"]
+    command: ["redis-server", "--save", "", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+
+  sqlserver:
+    <<: *sample
+    build: { context: ., args: { BASE: "mcr.microsoft.com/mssql/server:2025-latest" }, additional_contexts: *agent-image }
+    entrypoint: ["/opt/sounding/run", "/opt/mssql/bin/launch_sqlservr.sh"]
+    command: ["/opt/mssql/bin/sqlservr"]
+    environment:
+      <<: *agent
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: Sounding-Sample-1
+    deploy: { resources: { limits: { cpus: "2", memory: 3G } } }
+
+  ollama:
+    <<: *sample
+    profiles: [gpu]
+    build: { context: ., args: { BASE: "ollama/ollama:0.40.16" }, additional_contexts: *agent-image }
+    entrypoint: ["/opt/sounding/run", "/bin/ollama"]
+    command: ["serve"]
+    volumes:
+      - /proc:/host/proc:ro
+      - ${SOUNDING_HOST_DISK_MOUNT:-/var/lib/sounding/disk}:/host/disk:ro
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        limits: { cpus: "8", memory: 8G }
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+configs:
+  proxy: { file: platform/proxy.conf }
+  gateway: { file: platform/gateway.yml }
+  ui: { file: platform/ui.mjs }
+
+volumes:
+  ollama-models:
+
+networks:
+  sounding:
+    name: sounding_default
+    external: true
+  outside: {}

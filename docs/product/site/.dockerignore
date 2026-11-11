@@ -1,0 +1,11 @@
+dist/
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+*.env
+public/assets
+README.md

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);ClientApp/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sounding.Shared\Sounding.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Sounding.Shared" />
+    <Using Include="Sounding.Dashboard" />
+    <Using Include="Sounding.Dashboard.Api" />
+    <Using Include="Sounding.Dashboard.Data" />
+    <Using Include="Sounding.Dashboard.Live" />
+  </ItemGroup>
+
+</Project>

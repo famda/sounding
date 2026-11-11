@@ -1,0 +1,11 @@
+{
+  "name": "sounding-documentation-screenshots",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "playwright test && node publish.mjs"
+  },
+  "dependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}

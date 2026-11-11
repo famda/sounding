@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <StripSymbols>true</StripSymbols>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <EventSourceSupport>false</EventSourceSupport>
+    <StackTraceSupport>false</StackTraceSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The default gen0 budget follows the CPU cache size (tens of MB on big hosts); 4 MB is plenty here. -->
+    <RuntimeHostConfigurationOption Include="System.GC.Gen0MaxBudget" Value="4194304" />
+    <!-- The agent only reads kernel files, thousands a tick: no advisory lock (an flock call) on each open. -->
+    <RuntimeHostConfigurationOption Include="System.IO.DisableFileLocking" Value="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sounding.Shared\Sounding.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Sounding.Shared" />
+    <Using Include="Sounding.Agent" />
+    <Using Include="Sounding.Agent.Identity" />
+    <Using Include="Sounding.Agent.Reporting" />
+    <Using Include="Sounding.Agent.Sampling" />
+  </ItemGroup>
+
+</Project>

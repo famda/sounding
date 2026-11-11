@@ -1,0 +1,45 @@
+name: sounding-docs
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: sounding_docs
+      POSTGRES_USER: sounding_docs
+      POSTGRES_PASSWORD: documentation-only
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sounding_docs -d sounding_docs"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  dashboard:
+    build:
+      context: ../../..
+      dockerfile: src/Sounding.Dashboard/Dockerfile
+    environment:
+      SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding_docs;Username=sounding_docs;Password=documentation-only"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  capture:
+    build:
+      context: ../../..
+      dockerfile: docs/product/screenshots/Dockerfile
+    shm_size: 1gb
+    environment:
+      SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding_docs;Username=sounding_docs;Password=documentation-only"
+    volumes:
+      - ../assets:/output
+    depends_on:
+      db:
+        condition: service_healthy
+      dashboard:
+        condition: service_started
+
+networks:
+  default:
+    internal: true
