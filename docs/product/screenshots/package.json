@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "capture": "playwright test && node publish.mjs"
+    "capture": "playwright test && playwright test --config standalone.config.mjs && node publish.mjs"
   },
   "dependencies": {
     "@playwright/test": "1.56.1"

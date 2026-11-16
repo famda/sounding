@@ -9,7 +9,9 @@ database as sensitive.
 ## Protect the dashboard
 
 > [!WARNING]
-> The dashboard has no sign-in. Anyone who can reach it can see everything, and record packet captures.
+> The dashboard has no sign-in. Anyone who can reach it can see everything, and record packet captures. The same goes
+> for the [REST API](../reference/api.md) and for [AI assistants](../ai-assistants/connect-an-ai-assistant.md), which
+> use the dashboard's port.
 
 - **Keep it private.** Publish it on `127.0.0.1`, as in the examples, and reach it over SSH or a VPN.
 - **Or put it behind authentication.** Place it behind a reverse proxy that signs users in and encrypts the connection.

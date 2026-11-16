@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sounding": {
+      "type": "streamable-http",
+      "url": "http://dashboard:8080/mcp"
+    }
+  }
+}

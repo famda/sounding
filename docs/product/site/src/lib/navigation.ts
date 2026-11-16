@@ -64,6 +64,24 @@ export const navigation: Array<{ title: string; links: Array<NavLink> }> = [
     ],
   },
   {
+    title: 'AI assistants',
+    links: [
+      {
+        title: 'Connect an AI assistant',
+        href: '/ai-assistants/connect-an-ai-assistant',
+      },
+      {
+        title: 'What Sounding provides',
+        href: '/ai-assistants/what-sounding-provides',
+      },
+      { title: 'Set up a local model', href: '/ai-assistants/set-up-a-local-model' },
+      {
+        title: 'Tutorial: find a memory leak',
+        href: '/ai-assistants/tutorial-find-a-memory-leak',
+      },
+    ],
+  },
+  {
     title: 'Concepts',
     links: [
       { title: 'How Sounding works', href: '/concepts/how-sounding-works' },
@@ -96,6 +114,7 @@ export const navigation: Array<{ title: string; links: Array<NavLink> }> = [
     title: 'Reference',
     links: [
       { title: 'Configuration', href: '/reference/configuration' },
+      { title: 'REST API', href: '/reference/api' },
       { title: 'Events', href: '/reference/events' },
       { title: 'Metrics', href: '/reference/metrics' },
       { title: 'Requirements', href: '/reference/requirements' },

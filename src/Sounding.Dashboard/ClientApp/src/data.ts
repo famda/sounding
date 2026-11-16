@@ -143,7 +143,7 @@ export function useFleet(hostId: string | null, containerId: string | null) {
     const params = new URLSearchParams();
     if (hostId) params.set('hosts', hostId);
     if (hostId && containerId) params.set('containers', containerId);
-    const source = new EventSource(`api/fleet/stream?${params}`);
+    const source = new EventSource(`api/v1/fleet/stream?${params}`);
     let failed = false;
     let staleTimer: ReturnType<typeof setTimeout>;
     let lastTimestamp: string | null = null;
@@ -176,7 +176,7 @@ export function useFleet(hostId: string | null, containerId: string | null) {
 function historyRequest(scope: Scope, seconds: number): { url: string; convert: (json: unknown) => [number[], Record<string, Column>, number] } {
   if (!scope.hostId) {
     return {
-      url: `api/fleet/history?seconds=${seconds}`,
+      url: `api/v1/fleet/history?seconds=${seconds}`,
       convert: json => {
         const h = json as FleetHistory;
         const columns: Record<string, Column> = {};
@@ -192,7 +192,7 @@ function historyRequest(scope: Scope, seconds: number): { url: string; convert: 
   }
   if (!scope.containerId) {
     return {
-      url: `api/hosts/${encodeURIComponent(scope.hostId)}/history?seconds=${seconds}`,
+      url: `api/v1/hosts/${encodeURIComponent(scope.hostId)}/history?seconds=${seconds}`,
       convert: json => {
         const h = json as HostHistory;
         const columns: Record<string, Column> = {
@@ -208,7 +208,7 @@ function historyRequest(scope: Scope, seconds: number): { url: string; convert: 
     };
   }
   return {
-    url: `api/containers/${encodeURIComponent(scope.containerId)}/history?seconds=${seconds}`,
+    url: `api/v1/containers/${encodeURIComponent(scope.containerId)}/history?seconds=${seconds}`,
     convert: json => {
       const h = json as ContainerHistory;
       return [

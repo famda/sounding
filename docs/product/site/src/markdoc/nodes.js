@@ -3,7 +3,7 @@ import { slugifyWithCounter } from '@sindresorhus/slugify'
 import yaml from 'js-yaml'
 
 import { DocsLayout } from '@/components/DocsLayout'
-import { DocumentationImage } from '@/components/DocumentationImage'
+import { ZoomableImage } from '@/components/ZoomableImage'
 import { DocumentationTable } from '@/components/DocumentationTable'
 import { Fence } from '@/components/Fence'
 
@@ -16,7 +16,7 @@ const nodes = {
   },
   image: {
     ...defaultNodes.image,
-    render: DocumentationImage,
+    render: ZoomableImage,
   },
   document: {
     ...defaultNodes.document,

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
+import sharp from 'sharp'
 import yaml from 'js-yaml'
 
 const output = path.resolve('dist')
@@ -36,6 +37,16 @@ function decodeHtml(value) {
     .replace(/&#(?:x27|39);/gi, "'")
 }
 
+function metadata(html) {
+  const values = new Map()
+  for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const name = tag.match(/\b(?:name|property)=(["'])(.*?)\1/i)?.[2]
+    const content = tag.match(/\bcontent=(["'])(.*?)\1/i)?.[2]
+    if (name && content !== undefined) values.set(name, decodeHtml(content))
+  }
+  return values
+}
+
 const documents = files(app, '.md')
 const pages = new Map(
   files(output, '.html').map((filename) => {
@@ -54,12 +65,40 @@ for (const document of documents) {
   const expected = path.join(output, route, 'index.html')
   assert.ok(existsSync(expected), `Missing generated page for ${document}.`)
   const frontmatter = readFileSync(document, 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  const { title } = yaml.load(frontmatter[1])
+  const { title, description } = yaml.load(frontmatter[1])
+  const html = readFileSync(expected, 'utf8')
   const htmlTitle = decodeHtml(
-    readFileSync(expected, 'utf8').match(/<title>(.*?)<\/title>/)?.[1] ?? '',
+    html.match(/<title>(.*?)<\/title>/)?.[1] ?? '',
   )
   assert.equal(htmlTitle, `${title} | Sounding`, `Incorrect page title for ${document}.`)
+  const tags = metadata(html)
+  const imageUrl = new URL(`${basePath}/assets/social-preview.png`, origin).href
+  for (const [name, value] of [
+    ['og:title', htmlTitle],
+    ['og:description', description],
+    ['og:site_name', 'Sounding'],
+    ['og:type', 'website'],
+    ['og:url', new URL(`${basePath}/${route}${route ? '/' : ''}`, origin).href],
+    ['og:image', imageUrl],
+    ['og:image:type', 'image/png'],
+    ['og:image:width', '1200'],
+    ['og:image:height', '630'],
+    ['twitter:card', 'summary_large_image'],
+    ['twitter:title', htmlTitle],
+    ['twitter:description', description],
+    ['twitter:image', imageUrl],
+  ]) {
+    assert.equal(tags.get(name), value, `Incorrect or missing ${name} for ${document}.`)
+  }
+  assert.ok(tags.get('og:image:alt'), `Missing Open Graph image alt text for ${document}.`)
+  assert.equal(tags.get('twitter:image:alt'), tags.get('og:image:alt'),
+    `Inconsistent social image alt text for ${document}.`)
 }
+const socialImage = path.join(output, 'assets', 'social-preview.png')
+const { format, width, height } = await sharp(socialImage).metadata()
+assert.deepEqual({ format, width, height }, { format: 'png', width: 1200, height: 630 },
+  'The social preview must be a 1200x630 PNG.')
+assert.ok(statSync(socialImage).size < 5 * 1024 * 1024, 'The social preview must be under 5 MiB.')
 assert.ok(existsSync(path.join(output, '404.html')), 'Missing exported 404 page.')
 assert.ok(existsSync(path.join(output, '404', 'index.html')), 'Missing exported fallback page.')
 assert.ok(existsSync(path.join(output, '_not-found', 'index.html')), 'Missing exported not-found route.')
@@ -113,4 +152,4 @@ for (const [filename, page] of pages) {
   }
 }
 
-console.log(`Verified ${documents.length} documentation pages and ${references} local links and assets.`)
+console.log(`Verified ${documents.length} documentation pages, social previews and ${references} local links and assets.`)

@@ -1,0 +1,39 @@
+# The samples, private to the evals: on the evals' own network, no ports on the host, no data kept.
+services:
+  proxy:
+    ports: !reset []
+
+  # The simulated customers reach the proxy inside the network: nothing is published on the host for them to use.
+  users:
+    networks: !override [sounding]
+    extra_hosts: !reset []
+    command: !override
+      - sh
+      - -c
+      - |
+        n=0
+        while :; do
+          n=$$((n + 1))
+          item=$$((n % 24 + 1))
+          curl -s -o /dev/null http://proxy/
+          curl -s -o /dev/null http://proxy/api/catalog/items/$$item
+          curl -s -o /dev/null -H 'content-type: application/json' -d "{\"item\": $$item, \"qty\": 2}" http://proxy/api/orders
+          curl -s -o /dev/null http://proxy/api/orders
+          sleep 1
+        done
+
+  # Big receipts, so the order-history leak (off until a scenario turns it on) reaches the memory limit in about a
+  # minute rather than a quarter of an hour.
+  orders-api:
+    environment:
+      RECEIPT_KB: "16384"
+
+  shop-db:
+    volumes: !override
+      - /proc:/host/proc:ro
+      - ${SOUNDING_HOST_DISK_MOUNT:-/var/lib/sounding/disk}:/host/disk:ro
+    tmpfs: [/var/lib/postgresql]
+
+networks:
+  sounding: !override
+    name: sounding-evals-env

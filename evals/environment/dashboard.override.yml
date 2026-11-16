@@ -1,0 +1,15 @@
+# The solution's dashboard and database, private to the evals: no ports on the host, no data kept.
+services:
+  dashboard:
+    ports: !reset []
+    networks: [sounding]
+
+  db:
+    ports: !reset []
+    volumes: !reset []
+    tmpfs: [/var/lib/postgresql]
+    networks: [sounding]
+
+networks:
+  sounding:
+    name: sounding-evals-env

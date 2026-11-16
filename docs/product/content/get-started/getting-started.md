@@ -1,17 +1,26 @@
 ---
-title: Getting Started
-description: Add two lines to your Dockerfile, pass one environment variable, and see your container live in the dashboard.
+title: Getting started
+description: Bring your first application into Sounding, open its live figures, and make your first check.
 ---
 
-Adding Sounding to an application takes **two lines in its Dockerfile** and **one environment variable**. There is no
-host agent to install, no sidecar to deploy, and no Docker socket to mount.
+Start with one application you already run. Adding the agent takes **two lines in its Dockerfile** and **one
+environment variable**. This guide also starts a dashboard and PostgreSQL beside it, so you can go from an
+application to live figures in your browser.
 
-**You need:** Docker Compose v2 and x86-64 Linux containers, on Linux or Docker Desktop (see
-[requirements](../reference/requirements.md)).
+There is no host agent to install, no sidecar to deploy, and no Docker socket to mount.
+
+**Just exploring?** [Try the standalone demo](full-demo.md) for a ready-made application instead.
+
+**You need:**
+
+- An application that already builds and runs in Docker Compose.
+- Docker Compose v2 and x86-64 Linux containers, on Linux or Docker Desktop. See
+  [requirements](../reference/requirements.md).
 
 ## 1. Add the agent to your image
 
-Copy `/opt/sounding` into your `Dockerfile` and start your application through `/opt/sounding/run`.
+Copy `/opt/sounding` into your `Dockerfile` and start your application through `/opt/sounding/run`. Keep your
+existing build steps and dependencies; the examples below show where Sounding fits, not a replacement application.
 
 **If your Dockerfile uses `CMD`** (without an `ENTRYPOINT`), add `ENTRYPOINT ["/opt/sounding/run"]` above it:
 
@@ -44,6 +53,9 @@ ENTRYPOINT ["/opt/sounding/run", "dotnet", "MyApp.dll"]
 > ```sh
 > docker inspect --format '{{json .Config.Entrypoint}} {{json .Config.Cmd}}' redis:8.2
 > ```
+>
+> Put `/opt/sounding/run` before the original entrypoint, and keep the original `CMD`. This preserves the image's
+> startup script as well as the application it starts.
 
 Your application keeps its user, arguments, signals, exit code, and logs—and keeps running normally even if the
 database is unreachable.
@@ -103,10 +115,10 @@ volumes:
 include `default` or attach `db` to the same network so the agent can reach it.
 
 > [!TIP]
-> **Already have PostgreSQL?** Skip `db` and `sounding-db`—just pass your database's connection string in
-> `SOUNDING_CONNECTION_STRING` on `your-app` and `dashboard`. Sounding creates its tables automatically on first
-> connect. Inside a container, `localhost` is the container itself, so use a reachable host name. See
-> [set up the database](../operate/set-up-the-database.md).
+> **Already have PostgreSQL?** Skip the `db` service and `sounding-db` volume, and remove the dashboard's
+> `depends_on` block. Set `SOUNDING_CONNECTION_STRING` on `your-app` and `dashboard` to your database's connection
+> string. Sounding creates its tables automatically on first connect. Inside a container, `localhost` is the
+> container itself, so use a reachable host name. See [set up the database](../operate/set-up-the-database.md).
 
 ## 3. Build and open the dashboard
 
@@ -117,10 +129,29 @@ docker compose up -d --build
 ```
 
 Open <http://localhost:8080>. Your host and container appear within a few seconds; with a single host, the dashboard
-opens it directly. Select your container to inspect its CPU, memory, disk, and network against its limits.
+opens it directly.
 
-If your container doesn't appear, see
-[My container doesn't appear](../troubleshooting/troubleshoot.md#my-container-doesnt-appear).
+**Check that it is working:**
+
+1. Find the host named **my-host**, as set in the Compose example.
+2. Select your container and look for live CPU and memory figures.
+3. Check that the header says **Live**. Wait a few seconds for the charts to build up.
+
+On Docker Desktop, the host is Docker's Linux virtual machine, not your Windows or macOS machine.
+
+### Make your first check
+
+Use the application as you normally would: send a request or run a small job. Open the container's **CPU** or
+**Memory** page, choose **1m**, and hover over the chart to see its figures at that moment.
+
+You now have a starting point for a real question: is memory growing, is the container reaching a CPU limit, or
+which process is busy? [Find your way around the dashboard](../dashboard/find-your-way-around.md) explains how to
+follow those clues.
+
+If your container doesn't appear, start with
+[My container doesn't appear](../troubleshooting/troubleshoot.md#my-container-doesnt-appear). If it appears but a
+chart says **Not available**, check [what needs extra access](../reference/requirements.md#optional-access);
+missing data isn't a zero reading.
 
 > [!WARNING]
 > The dashboard has no sign-in. Keep it on `127.0.0.1` as above, or put it behind your own authentication, before others

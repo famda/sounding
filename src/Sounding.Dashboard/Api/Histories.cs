@@ -79,4 +79,22 @@ public sealed record ProcessWindow(
     double? MemoryGrowthBytesPerHour = null);
 
 // Something that happened, as opposed to a sample: a restart, an OOM kill, a new port or destination.
-public sealed record HostEvent(DateTimeOffset Time, string? ContainerId, string Kind, string Level, string Message);
+public sealed record HostEvent(DateTimeOffset Time, string? ContainerId, string Kind, string Level, string Message, string? HostId = null, string? ContainerName = null);
+
+// Which events to read. Every predicate applies before Limit, so routine events elsewhere on a host cannot push out
+// the ones asked for. Significant leaves out information events other than lifecycle ones; SkipRoutineProcesses
+// leaves out only processes starting and ending; SevereFirst fills the limit with errors, then warnings, then the rest.
+public sealed record EventFilter(
+    IReadOnlyList<string> HostIds,
+    TimeSpan Window,
+    int Limit,
+    string? ContainerId = null,
+    IReadOnlyList<string>? Levels = null,
+    IReadOnlyList<string>? Kinds = null,
+    bool Significant = false,
+    bool SkipRoutineProcesses = false,
+    bool SevereFirst = false);
+
+// Truncated: the window held more matching events than the limit, so the oldest (or, with SevereFirst, the mildest)
+// were not read.
+public sealed record EventPage(IReadOnlyList<HostEvent> Events, bool Truncated);

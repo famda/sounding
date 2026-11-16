@@ -16,13 +16,17 @@ The product documentation is published at **<https://famda.github.io/sounding/>*
   [Standalone demo](content/get-started/full-demo.md).
 - **Dashboard:** [Find your way around](content/dashboard/find-your-way-around.md), then the CPU, memory, disk, network,
   GPU, processes and packet capture guides in [content/dashboard](content/dashboard/).
+- **AI assistants:** [Connect an AI assistant](content/ai-assistants/connect-an-ai-assistant.md),
+  [What Sounding provides](content/ai-assistants/what-sounding-provides.md),
+  [Set up a local model](content/ai-assistants/set-up-a-local-model.md),
+  [Tutorial: find a memory leak](content/ai-assistants/tutorial-find-a-memory-leak.md).
 - **Operate:** [Set up the database](content/operate/set-up-the-database.md),
   [Secure Sounding](content/operate/secure-sounding.md), [Upgrade Sounding](content/operate/upgrade-sounding.md),
   [Remove Sounding](content/operate/remove-sounding.md), and the host and permission guides in
   [content/operate](content/operate/).
 - **Concepts:** [How Sounding works](content/concepts/how-sounding-works.md) and the other pages in
   [content/concepts](content/concepts/).
-- **Reference:** [Configuration](content/reference/configuration.md), [Metrics](content/reference/metrics.md),
+- **Reference:** [Configuration](content/reference/configuration.md), [REST API](content/reference/api.md), [Metrics](content/reference/metrics.md),
   [Events](content/reference/events.md), [Requirements](content/reference/requirements.md).
 - **Troubleshooting:** [Troubleshoot](content/troubleshooting/troubleshoot.md), [FAQ](content/troubleshooting/faq.md).
 

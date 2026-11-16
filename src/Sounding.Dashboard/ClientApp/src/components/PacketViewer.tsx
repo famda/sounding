@@ -166,7 +166,7 @@ export function PacketViewer({ id }: { id: number }) {
     const controller = new AbortController();
     setFile(null);
     setSelected(null);
-    fetch(`api/captures/${id}`, { signal: controller.signal })
+    fetch(`api/v1/captures/${id}`, { signal: controller.signal })
       .then(response => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(`HTTP ${response.status}`))))
       .then(setFile)
       .catch(e => { if (!controller.signal.aborted) setError(String(e.message ?? e)); });

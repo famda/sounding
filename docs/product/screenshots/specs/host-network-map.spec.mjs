@@ -9,9 +9,9 @@ test('Host network map', async ({ page }) => {
   await page.locator('.panel-maximized').waitFor();
   await map.locator('.map-packet').first().waitFor();
   await expect(map.getByText('postgres-1', { exact: true })).toBeAttached();
-  const response = await page.request.get('/api/network');
+  const response = await page.request.get('/api/v1/network');
   const snapshot = await response.json();
-  await page.route('**/api/network', route => route.fulfill({ json: snapshot }));
+  await page.route('**/api/v1/network', route => route.fulfill({ json: snapshot }));
   await captureAnimation(page, 'host-network-map.gif', {
     frames: 50,
     fps: 25,

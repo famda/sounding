@@ -11,6 +11,7 @@ Use the links below to read only the sections relevant to the task. Documentatio
 
 - [Stack and versions](technical/README.md#stack-and-versions)
 - [Services, telemetry resource names, and request flow](technical/README.md#services)
+- [Dashboard REST API, MCP server and query handlers](technical/api.md)
 - [Test locations and focused-run syntax](technical/README.md#tests)
 - [Security model](technical/README.md#security-model)
 - [Container setup and local commands](technical/README.md#local-commands)

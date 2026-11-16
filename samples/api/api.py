@@ -1,7 +1,11 @@
-"""The shop's APIs in one file; the gateway sends each service only its own routes.
+"""The shop's APIs in one file; the proxy sends each service only its own routes.
 
-catalog: items from SQL Server, cached in Redis. orders: checks the item with catalog, then writes to SQL Server.
+catalog: items from PostgreSQL, cached in Redis. orders: checks the item with catalog, then writes to PostgreSQL.
 assistant: asks a small model on ollama.
+
+orders has an "order history" feature, off by default, to demonstrate a memory leak: once turned on
+(POST /api/orders/history), it keeps a receipt of every order in memory and never lets go of it, so the process
+grows until the kernel's OOM killer stops it at the container's memory limit.
 """
 import json
 import os
@@ -11,24 +15,27 @@ import urllib.request
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import pytds
+import psycopg
 import redis
 
-SQL = dict(server="sqlserver", user="sa", password=os.environ["SQL_PASSWORD"], autocommit=True, login_timeout=5)
+DATABASE = dict(host="shop-db", dbname="shop", user="shop", password=os.environ["SHOP_DB_PASSWORD"],
+                autocommit=True, connect_timeout=5)
 CATALOG_URL = "http://catalog-api:8080"
 OLLAMA_URL = "http://ollama:11434"
 ROLE = os.environ["API_ROLE"]
 MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:270m")
+RECEIPT_BYTES = int(os.environ.get("RECEIPT_KB", "3072")) * 1024
 NAMES = ["Mug", "Notebook", "Pen", "Lamp", "Backpack", "Bottle", "Headphones", "Cable", "Charger", "Mouse",
          "Keyboard", "Sticker", "Poster", "Plant", "Candle", "Scarf", "Socks", "Cap", "Umbrella", "Wallet",
          "Puzzle", "Book", "Frame", "Clock"]
 
 cache = redis.Redis(host="cache", socket_timeout=2, socket_connect_timeout=2)
 ITEM = re.compile(r"^/api/catalog/items/(\d+)$")
+history = None
 
 
-def sql(statement, *params, database="shop"):
-    with pytds.connect(database=database, **SQL) as conn, conn.cursor() as cur:
+def sql(statement, *params):
+    with psycopg.connect(**DATABASE) as conn, conn.cursor() as cur:
         cur.execute(statement, params)
         return cur.fetchall() if cur.description else []
 
@@ -54,6 +61,7 @@ def item(item_id):
 
 
 def route(method, path, body):
+    global history
     if method == "GET" and path == "/api/catalog/items":
         return 200, [{"id": i, "name": n, "price": float(p)} for i, n, p in sql("SELECT id, name, price FROM items")]
     if method == "GET" and (match := ITEM.match(path)):
@@ -62,11 +70,19 @@ def route(method, path, body):
     if method == "POST" and path == "/api/orders":
         found = call("GET", f"{CATALOG_URL}/api/catalog/items/{int(body['item'])}")
         qty = int(body.get("qty", 1))
-        order_id = sql("INSERT INTO orders (item_id, qty, total) OUTPUT INSERTED.id VALUES (%s, %s, %s)",
+        order_id = sql("INSERT INTO orders (item_id, qty, total) VALUES (%s, %s, %s) RETURNING id",
                        found["id"], qty, Decimal(str(found["price"])) * qty)[0][0]
+        if history is not None:
+            # The bug: every receipt is kept, and nothing ever removes one.
+            history.append(f"receipt {order_id}\n".encode() * (RECEIPT_BYTES // 16))
         return 201, {"id": order_id}
+    if method == "POST" and path == "/api/orders/history":
+        if history is None:
+            history = []
+            print("order history turned on: keeping a receipt of every order", flush=True)
+        return 200, {"history": "on"}
     if method == "GET" and path == "/api/orders":
-        rows = sql("SELECT TOP 10 id, item_id, qty, total FROM orders ORDER BY id DESC")
+        rows = sql("SELECT id, item_id, qty, total FROM orders ORDER BY id DESC LIMIT 10")
         return 200, [{"id": i, "item": it, "qty": q, "total": float(t)} for i, it, q, t in rows]
     if method == "POST" and path == "/api/assistant":
         reply = call("POST", f"{OLLAMA_URL}/api/generate", {
@@ -104,22 +120,18 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def prepare():
-    """catalog creates and seeds the shop database; assistant pulls the model. Retries until the server is up."""
+    """catalog creates and seeds the tables; assistant pulls the model. Retries until the server is up."""
     while ROLE != "orders":
         try:
             if ROLE == "assistant":
                 call("POST", f"{OLLAMA_URL}/api/pull", {"model": MODEL, "stream": False}, timeout=600)
             else:
-                sql("IF DB_ID('shop') IS NULL CREATE DATABASE shop", database="master")
-                sql("""IF OBJECT_ID('items') IS NULL BEGIN
-                         CREATE TABLE items (id int PRIMARY KEY, name nvarchar(50) NOT NULL, price decimal(9, 2) NOT NULL)
-                       END
-                       IF OBJECT_ID('orders') IS NULL
-                         CREATE TABLE orders (id int IDENTITY PRIMARY KEY, item_id int NOT NULL, qty int NOT NULL,
-                                              total decimal(9, 2) NOT NULL, at datetime2 DEFAULT SYSUTCDATETIME())""")
+                sql("""CREATE TABLE IF NOT EXISTS items (id int PRIMARY KEY, name text NOT NULL, price numeric(9, 2) NOT NULL);
+                       CREATE TABLE IF NOT EXISTS orders (id serial PRIMARY KEY, item_id int NOT NULL, qty int NOT NULL,
+                                                          total numeric(9, 2) NOT NULL, at timestamptz DEFAULT now())""")
                 for i, name in enumerate(NAMES, 1):
-                    sql("IF NOT EXISTS (SELECT 1 FROM items WHERE id = %s) INSERT INTO items VALUES (%s, %s, %s)",
-                        i, i, name, Decimal(i * 37 % 50 + 4) + Decimal("0.99"))
+                    sql("INSERT INTO items VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                        i, name, Decimal(i * 37 % 50 + 4) + Decimal("0.99"))
             return
         except Exception as error:
             print(f"waiting: {error}", flush=True)

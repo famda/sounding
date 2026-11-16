@@ -1,0 +1,79 @@
+# The world one scenario runs in: its own database, dashboard and samples, with no published ports and no volumes, so
+# it starts empty every time and nothing a scenario does is seen by the next one or by the development stack.
+# platform.ps1 recreates it for every scenario (project sounding-evals-env).
+name: sounding-evals-env
+
+include:
+  - path: [../../docker-compose.yml, dashboard.override.yml]
+  - path: [../../samples/docker-compose.yml, samples.override.yml]
+
+# A container that misbehaves on purpose, wrapped with the Sounding agent so the dashboard sees it. Created stopped;
+# the runner starts it when a scenario calls for it.
+x-faulty: &faulty
+  build:
+    dockerfile_inline: |
+      FROM python:3.13-slim
+      COPY --from=famda/sounding:agent-latest /opt/sounding /opt/sounding
+      ENTRYPOINT ["/opt/sounding/run", "python", "-c"]
+  profiles: [faults]
+  environment:
+    SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding;Username=sounding;Password=${SOUNDING_DB_PASSWORD:?run with --env-file .env}"
+    SOUNDING_HOST_DISPLAY_NAME: ${SOUNDING_HOST_DISPLAY_NAME:-}
+  volumes:
+    - /proc:/host/proc:ro
+  networks: [sounding]
+
+services:
+  # Keeps every job in memory: reaches its limit in about half a minute, is killed, and starts again.
+  worker:
+    <<: *faulty
+    command:
+      - |
+        import time
+        jobs = []
+        while True:
+            jobs.append(b"job " * 1048576)
+            time.sleep(1)
+    mem_limit: 128m
+    memswap_limit: 128m
+    restart: unless-stopped
+
+  # One busy process per core and no CPU limit: takes the host's CPU from everything else on it.
+  reports-batch:
+    <<: *faulty
+    command:
+      - |
+        import multiprocessing, os
+        def burn():
+            while True:
+                pass
+        for _ in range(os.cpu_count()):
+            multiprocessing.Process(target=burn, daemon=True).start()
+        multiprocessing.Event().wait()
+
+  # Fills most of its memory limit once and then holds it: close to the limit, but never over it.
+  indexer:
+    <<: *faulty
+    command:
+      - |
+        import time
+        index = bytearray(210 << 20)
+        while True:
+            time.sleep(60)
+    mem_limit: 256m
+    memswap_limit: 256m
+
+  # Writes 16 MiB a second into its own filesystem and never cleans up. Gone, with what it wrote, when the
+  # environment is removed.
+  exporter:
+    <<: *faulty
+    command:
+      - |
+        import os, time
+        os.makedirs("/var/exports", exist_ok=True)
+        n = 0
+        while True:
+            n += 1
+            with open(f"/var/exports/export-{n:05}.csv", "wb") as f:
+                f.write(os.urandom(16 << 20))
+            time.sleep(1)

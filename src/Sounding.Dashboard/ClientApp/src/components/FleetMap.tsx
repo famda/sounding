@@ -484,7 +484,7 @@ function measure(drawing: ReturnType<typeof build>): Drawing {
 export function NetworkMap({ r, scope, range, period, onScope, onOpen }: {
   r: Resolved; scope: Scope; range: number; period: string; onScope: (s: Scope) => void; onOpen: (view: View) => void;
 }) {
-  const network = usePolled<ContainerNetwork[]>('api/network', 5000);
+  const network = usePolled<ContainerNetwork[]>('api/v1/network', 5000);
   // Rebuilt only when what it draws changes: not on every second's fleet update.
   const drawnHosts = JSON.stringify(r.hosts.map(h => [h.hostId, h.displayName, h.online, h.containers.map(w => [w.containerId, w.name, w.status])]));
   const hosts = useMemo(() => r.hosts, [drawnHosts]);

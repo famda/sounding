@@ -70,8 +70,9 @@
 **/*.pfx
 **/*.p12
 
-# Not used by builds from the repository root (the samples and docs site build from their own folders)
+# Not used by builds from the repository root (the samples, evals and docs site build from their own folders)
 samples
+evals
 docs/product/assets
 docs/product/content
 docs/product/site

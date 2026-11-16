@@ -138,7 +138,7 @@ export interface ContainerDetail {
 
 export interface LogLine { time: string; stream: 'stdout' | 'stderr'; level: 'error' | 'warning' | 'info'; text: string }
 
-export interface HostEvent { time: string; containerId: string | null; kind: string; level: 'error' | 'warning' | 'info'; message: string }
+export interface HostEvent { time: string; containerId: string | null; kind: string; level: 'error' | 'warning' | 'info'; message: string; hostId?: string | null }
 
 export interface CaptureInfo { id: number; requestedAt: string; seconds: number; status: 'requested' | 'running' | 'done' | 'failed'; finishedAt: string | null; packets: number | null; bytes: number | null }
 

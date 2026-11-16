@@ -54,18 +54,18 @@ export function DetailPage(props: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const h = r.host;
   const every = range <= 300 ? 2000 : range <= 900 ? 5000 : range <= 3600 ? 20000 : range <= 21600 ? 60000 : 120000;
-  const hostHist = usePolled<SeriesHistory>(h ? `api/hosts/${encodeURIComponent(h.hostId)}/detail?seconds=${range}` : null, every);
-  const containerHist = usePolled<SeriesHistory>(scope.containerId ? `api/containers/${encodeURIComponent(scope.containerId)}/detail?seconds=${range}` : null, every);
+  const hostHist = usePolled<SeriesHistory>(h ? `api/v1/hosts/${encodeURIComponent(h.hostId)}/history/detail?seconds=${range}` : null, every);
+  const containerHist = usePolled<SeriesHistory>(scope.containerId ? `api/v1/containers/${encodeURIComponent(scope.containerId)}/history/detail?seconds=${range}` : null, every);
   const withProcesses = Boolean(h && (view === 'cpu' || view === 'memory' || view === 'gpu' || view === 'disk'));
-  const processes = usePolled<ContainerProcesses[]>(withProcesses ? `api/hosts/${encodeURIComponent(h!.hostId)}/processes` : null, 2000);
-  const network = usePolled<ContainerNetwork[]>(h && view === 'network' ? `api/hosts/${encodeURIComponent(h.hostId)}/network` : null, 2000);
-  const events = usePolled<HostEvent[]>(h && view === 'events' ? `api/hosts/${encodeURIComponent(h.hostId)}/events?seconds=${range}` : null, 5000);
+  const processes = usePolled<ContainerProcesses[]>(withProcesses ? `api/v1/hosts/${encodeURIComponent(h!.hostId)}/processes/by-container` : null, 2000);
+  const network = usePolled<ContainerNetwork[]>(h && view === 'network' ? `api/v1/hosts/${encodeURIComponent(h.hostId)}/network` : null, 2000);
+  const events = usePolled<HostEvent[]>(h && view === 'events' ? `api/v1/hosts/${encodeURIComponent(h.hostId)}/events?seconds=${range}&limit=1000` : null, 5000);
   const ticks = useMemo(() => timeTicks(props.start, props.end, range), [props.start, props.end, range]);
   const [processMode, setProcessMode] = useStored<ProcessMode>('sounding:processes', 'window', v => v === 'window' || v === 'now');
   const processWindow = usePolled<ContainerProcessWindow[]>(
-    withProcesses && processMode === 'window' ? `api/hosts/${encodeURIComponent(h!.hostId)}/processes/window?seconds=${range}` : null, range <= 3600 ? 5000 : every);
+    withProcesses && processMode === 'window' ? `api/v1/hosts/${encodeURIComponent(h!.hostId)}/processes/by-container/top?seconds=${range}` : null, range <= 3600 ? 5000 : every);
   const at = useDebounced(withProcesses && hover != null ? Math.round(hover / 5000) * 5000 : null, 150);
-  const processesAt = useFetched<ContainerProcesses[]>(withProcesses && at != null ? `api/hosts/${encodeURIComponent(h!.hostId)}/processes/at?t=${at}` : null);
+  const processesAt = useFetched<ContainerProcesses[]>(withProcesses && at != null ? `api/v1/hosts/${encodeURIComponent(h!.hostId)}/processes/by-container?at=${new Date(at).toISOString()}` : null);
 
   if (!h) return <Empty>This host is not reporting.</Empty>;
 
@@ -1130,12 +1130,15 @@ function CapturePanel({ c }: { c: Ctx }) {
   const [asked, setAsked] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<number | null>(null);
-  const captures = usePolled<CaptureInfo[]>(`api/containers/${encodeURIComponent(id)}/captures?v=${asked}`, 1500);
+  const captures = usePolled<CaptureInfo[]>(`api/v1/containers/${encodeURIComponent(id)}/captures?v=${asked}`, 1500);
   const busy = captures?.some(x => x.status === 'requested' || x.status === 'running');
   const start = (seconds: number) => {
     setError(null);
-    fetch(`api/containers/${encodeURIComponent(id)}/captures?seconds=${seconds}`, { method: 'POST' })
-      .then(async response => { if (!response.ok) setError(await response.text()); setAsked(n => n + 1); })
+    fetch(`api/v1/containers/${encodeURIComponent(id)}/captures`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seconds }) })
+      .then(async response => {
+        if (!response.ok) setError(((await response.json().catch(() => null)) as { detail?: string } | null)?.detail ?? `The capture failed (${response.status}).`);
+        setAsked(n => n + 1);
+      })
       .catch(() => setError('The dashboard couldn’t be reached.'));
   };
   const off = captureOff(c);
@@ -1177,7 +1180,7 @@ function CapturePanel({ c }: { c: Ctx }) {
               ? (
                 <span className="flex gap-3">
                   <button type="button" className="text-usage hover:underline" onClick={e => { e.stopPropagation(); setOpened(opened === x.id ? null : x.id); }}>{opened === x.id ? 'Close' : 'Open'}</button>
-                  <a className="text-muted hover:text-text hover:underline" href={`api/captures/${x.id}`} download>Download .pcap ({fmtBytes(x.bytes, 0)})</a>
+                  <a className="text-muted hover:text-text hover:underline" href={`api/v1/captures/${x.id}`} download>Download .pcap ({fmtBytes(x.bytes, 0)})</a>
                 </span>
               )
               : x.status === 'failed' ? <span style={{ color: T.warn }}>failed</span>

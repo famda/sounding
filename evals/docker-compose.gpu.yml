@@ -1,0 +1,4 @@
+# Added by platform.ps1 when nvidia-smi finds an NVIDIA GPU; without it the model runs on the processor, slowly.
+services:
+  model:
+    gpus: all

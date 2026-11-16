@@ -1,0 +1,5 @@
+# Added by platform.ps1 start when nvidia-smi finds an NVIDIA GPU: the chat's model runs on it. Without it the model
+# runs on the processor, slowly.
+services:
+  chat-model:
+    gpus: all

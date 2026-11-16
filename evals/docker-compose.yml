@@ -1,0 +1,41 @@
+# Evaluates the MCP tools and prompts: a local model is asked why something in a private copy of the samples is broken.
+# Run through .\platform.ps1 evals (see README.md). The model and the runner live here and stay between scenarios; the
+# world they look at is environment/docker-compose.yml, recreated for every scenario.
+name: sounding-evals
+
+services:
+  # The model that answers. Outside the environment and without the Sounding agent: a model working in a monitored
+  # container shows up as a busy, throttled container in the very data it is asked about.
+  model:
+    image: ollama/ollama:0.40.16
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_CONTEXT_LENGTH: "65536"
+    volumes:
+      - models:/root/.ollama
+
+  # Waits for the environment, injects the scenario's fault through the Docker socket, asks the model and checks the
+  # answer.
+  runner:
+    build: .
+    profiles: [run]
+    depends_on: [model]
+    environment:
+      MODEL: ${EVAL_MODEL:-qwen3.5:9b}
+      NO_COLOR: ${NO_COLOR:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./out:/out
+      - ./snapshots:/snapshots
+    networks: [default, environment]
+
+volumes:
+  # Created by platform.ps1 and shared with the development stack's chat model, so each model downloads once.
+  models:
+    name: sounding-models
+    external: true
+
+networks:
+  environment:
+    name: sounding-evals-env
+    external: true

@@ -4,6 +4,8 @@ import clsx from 'clsx'
 
 import { Providers } from '@/app/providers'
 import { Layout } from '@/components/Layout'
+import { pageMetadata } from '@/lib/metadata'
+import { basePath } from '@/lib/navigation'
 
 import '@/styles/tailwind.css'
 
@@ -14,15 +16,18 @@ const lexend = localFont({
 })
 
 export const metadata: Metadata = {
+  ...pageMetadata(
+    'What is Sounding?',
+    'Sounding shows what your Docker containers and their hosts are doing, live and for the last 24 hours, in one dashboard.',
+    '/',
+  ),
   title: {
     template: '%s | Sounding',
     default: 'What is Sounding? | Sounding',
   },
-  description:
-    'Sounding shows what your Docker containers and their hosts are doing, live and for the last hour, in one dashboard.',
-  metadataBase: new URL('https://famda.github.io'),
+  metadataBase: new URL(process.env.DOCS_SITE_ORIGIN ?? 'https://famda.github.io'),
   icons: {
-    icon: `${process.env.NEXT_PUBLIC_BASE_PATH ?? '/sounding'}/assets/logo.svg`,
+    icon: `${basePath}/assets/logo.svg`,
   },
 }
 

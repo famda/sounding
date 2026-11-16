@@ -3,10 +3,11 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './specs',
   testMatch: '**/*.spec.mjs',
+  testIgnore: '**/standalone-demo.spec.mjs',
   globalSetup: './setup.mjs',
   outputDir: '/tmp/playwright-results',
   forbidOnly: true,
-  workers: 1,
+  workers: 4,
   retries: 0,
   timeout: 60_000,
   expect: { timeout: 15_000 },

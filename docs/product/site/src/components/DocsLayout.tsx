@@ -25,6 +25,10 @@ export function DocsLayout({
           <Prose>{children}</Prose>
         </article>
         <PrevNextLinks />
+        <p className="mt-12 text-xs text-slate-400 dark:text-slate-500">
+          Product names and logos are trademarks of their respective owners. Sounding is not affiliated with or
+          endorsed by them.
+        </p>
       </div>
       <TableOfContents tableOfContents={tableOfContents} />
     </>

@@ -1,0 +1,210 @@
+[
+  {
+    "id": "healthy",
+    "set": "tuning",
+    "title": "Nothing is wrong",
+    "fault": "none",
+    "settle": 0,
+    "question": "The shop API feels slow. Why?",
+    "truth": "Nothing in the data shows a problem: the answer should say so (requests are fast, nothing is near a limit) instead of inventing a cause.",
+    "rubric": [
+      {"must": "cause", "say": [["no (current )?(problem|issue|cause|evidence|sign|finding)", "nothing (is )?(wrong|abnormal|unusual)", "(does not|doesn't|did not|didn't) show", "healthy", "not slow", "\\bnormal", "no .*(slow|fail)"]],
+       "unless": ["\\bbut\\b.*(throttl|leak|crash)"],
+       "why": "Cause says the data shows no problem"},
+      {"mustNot": "cause", "say": [["throttl", "out of memory", "\\boom\\b", "crash", "restart", "stopped", "leak", "saturat", "overload", "memory pressure"]],
+       "unless": ["\\bno\\b", "\\bnot\\b", "n't\\b", "without", "nothing", "\\bnone\\b", "neither"],
+       "why": "Cause does not invent a failure"}
+    ]
+  },
+  {
+    "id": "ambiguous",
+    "set": "tuning",
+    "title": "A name that matches several containers",
+    "fault": "none",
+    "settle": 0,
+    "question": "Is the api container healthy?",
+    "truth": "'api' matches catalog-api and orders-api: the answer should ask which one, or cover both and say so. It must not pick one silently.",
+    "rubric": [
+      {"must": "answer", "say": [["catalog"]], "why": "mentions catalog-api"},
+      {"must": "answer", "say": [["orders"]], "why": "mentions orders-api"}
+    ]
+  },
+  {
+    "id": "slow-db",
+    "set": "tuning",
+    "title": "A slow dependency two calls away",
+    "fault": "slow-db",
+    "settle": 100,
+    "question": "Placing orders in the shop is slow. Why?",
+    "prompt": {"name": "investigate", "arguments": {"problem": "Placing orders in the shop is slow.", "target": "orders-api"}},
+    "truth": "shop-db is held back by its CPU limit (0.01 cores, throttled almost all the time). orders-api and catalog-api are slow only because they wait for it.",
+    "rubric": [
+      {"must": "cause", "say": [["shop-db", "database", "postgres"]], "unless": ["\\bnot\\b.*(cause|slow|throttl)", "healthy"], "why": "Cause names the database"},
+      {"must": "answer", "say": [["shop-db", "database", "postgres"], ["throttl", "cpu"]], "unless": ["not throttl", "no cpu"], "why": "ties the database to its CPU limit"},
+      {"mustNot": "cause", "say": [["orders-api", "catalog-api"], ["(own )?cpu limit", "throttl", "memory", "leak"]], "unless": ["wait", "because of", "symptom", "\\bnot\\b", "n't\\b", "\\bno\\b"],
+       "why": "Cause does not blame the callers' own resources"}
+    ]
+  },
+  {
+    "id": "stopped-dependency",
+    "set": "tuning",
+    "title": "A dependency that stopped",
+    "fault": "stopped-catalog",
+    "settle": 75,
+    "question": "Placing orders in the shop fails. Why?",
+    "prompt": {"name": "investigate", "arguments": {"problem": "Placing orders in the shop fails.", "target": "orders-api"}},
+    "truth": "catalog-api stopped (SIGTERM, as by docker stop). orders-api checks each item with it, so every order fails; its name no longer resolves.",
+    "rubric": [
+      {"must": "cause", "say": [["catalog"], ["stopped", "not running", "\\bdown\\b", "exited", "sigterm", "signal 15", "unreachable", "(cannot|can't) be reached", "no longer resolv", "not resolv", "(cannot|can't) resolve", "offline", "unavailable"]],
+       "unless": ["is running", "not (stopped|down)"],
+       "why": "Cause says catalog-api is stopped or unreachable"},
+      {"mustNot": "cause", "say": [["shop-db"]],
+       "unless": ["\\bnot\\b", "n't\\b", "\\bno\\b", "healthy", "\\bfine\\b", "unrelated", "\\bok\\b", "normal", "ruled out"],
+       "why": "Cause does not blame shop-db"}
+    ]
+  },
+  {
+    "id": "noisy-neighbour",
+    "set": "tuning",
+    "title": "Another container takes the host's CPU",
+    "fault": "hog",
+    "settle": 90,
+    "question": "Everything in the shop got slower in the last few minutes. Why?",
+    "truth": "reports-batch, a container with no CPU limit, uses almost every core of the host. The shop's containers are not at fault; they compete with it.",
+    "rubric": [
+      {"must": "cause", "say": [["reports-batch", "batch"], ["cpu", "cores", "processor"]], "unless": ["not (using|busy|the cause)", "idle"],
+       "why": "Cause names reports-batch taking the CPU"}
+    ]
+  },
+  {
+    "id": "two-problems",
+    "set": "tuning",
+    "title": "Two unrelated problems at once",
+    "fault": "leak+slow-db",
+    "settle": 150,
+    "question": "Placing orders in the shop is slow. Why?",
+    "prompt": {"name": "investigate", "arguments": {"problem": "Placing orders in the shop is slow.", "target": "orders-api"}},
+    "truth": "shop-db held back by its CPU limit, as in slow-db. The worker in a crash loop is real and worth mentioning, but it is unrelated: orders do not call it. Blaming the worker is the failure this scenario looks for.",
+    "rubric": [
+      {"must": "cause", "say": [["shop-db", "database", "postgres"]], "unless": ["\\bnot\\b.*(cause|slow|throttl)", "healthy"], "why": "Cause names the database"},
+      {"must": "answer", "say": [["shop-db", "database", "postgres"], ["throttl", "cpu"]], "unless": ["not throttl"], "why": "ties the database to its CPU limit"},
+      {"mustNot": "cause", "say": [["worker"]],
+       "unless": ["unrelated", "separate", "independent", "\\bnot\\b", "n't\\b", "\\balso\\b", "additionally", "another", "aside", "second"],
+       "why": "Cause does not blame the worker"}
+    ]
+  },
+  {
+    "id": "cache-down",
+    "set": "holdout",
+    "title": "A stopped service two calls away",
+    "fault": "stopped-cache",
+    "settle": 75,
+    "question": "Product pages in the shop show errors. Why?",
+    "truth": "The cache (Redis) container stopped. catalog-api looks every item up in it first, so its requests fail, and the pages and orders that need the catalog fail with it.",
+    "rubric": [
+      {"must": "cause", "say": [["cache", "redis"], ["stopped", "not running", "\\bdown\\b", "exited", "sigterm", "signal 15", "unreachable", "(cannot|can't) be reached", "no longer resolv", "not resolv", "(cannot|can't) resolve", "offline", "unavailable"]],
+       "unless": ["is running", "not (stopped|down)"],
+       "why": "Cause says the cache is stopped or unreachable"},
+      {"mustNot": "cause", "say": [["shop-db"]],
+       "unless": ["\\bnot\\b", "n't\\b", "\\bno\\b", "healthy", "\\bfine\\b", "unrelated", "\\bok\\b", "normal", "ruled out"],
+       "why": "Cause does not blame shop-db"}
+    ]
+  },
+  {
+    "id": "frozen-service",
+    "set": "tuning",
+    "title": "A service that hangs without stopping",
+    "fault": "frozen-catalog",
+    "settle": 90,
+    "question": "Placing orders hangs for a few seconds and then fails. Why?",
+    "truth": "catalog-api is frozen (paused): it has not stopped or exited, but it no longer answers or reports. Calls to it time out, so orders, which check each item with it, fail.",
+    "rubric": [
+      {"must": "cause", "say": [["catalog"], ["offline", "not report", "stopped report", "frozen", "paused", "unresponsive", "not respond", "no answer", "not answer", "hang", "hung", "timed? ?out", "time out", "no longer", "silent"]],
+       "unless": ["is (healthy|fine)"],
+       "why": "Cause says catalog-api no longer answers or reports"},
+      {"mustNot": "cause", "say": [["shop-db"]],
+       "unless": ["\\bnot\\b", "n't\\b", "\\bno\\b", "healthy", "\\bfine\\b", "unrelated", "\\bok\\b", "normal", "ruled out"],
+       "why": "Cause does not blame shop-db"}
+    ]
+  },
+  {
+    "id": "disk-filling",
+    "set": "holdout",
+    "title": "A disk that is filling up",
+    "fault": "disk",
+    "settle": 150,
+    "question": "Is anything going to run out of disk space?",
+    "truth": "The exporter container writes about 16 MiB a second into /var/exports in its own filesystem and never cleans up; at that rate its disk fills.",
+    "rubric": [
+      {"must": "answer", "say": [["exporter"], ["disk", "fill", "grow", "full", "space", "/var/exports"]], "unless": ["not (filling|growing)", "plenty of"],
+       "why": "says the exporter's disk is filling"},
+      {"must": "answer", "say": [["/var/exports", "export-"]], "why": "names where the space goes"}
+    ]
+  },
+  {
+    "id": "past-outage",
+    "set": "holdout",
+    "title": "An outage that is already over",
+    "fault": "orders-leak",
+    "settle": 200,
+    "question": "Orders failed for a short while a few minutes ago and work again now. What happened?",
+    "prompt": {"name": "investigate", "arguments": {"problem": "Orders failed for a short while a few minutes ago and work again now."}},
+    "truth": "orders-api ran out of memory: its memory climbed to its 512 MiB limit, the kernel killed it (signal 9), and it restarted. It is healthy again now, so the answer has to come from what happened, not from the current state.",
+    "rubric": [
+      {"must": "cause", "say": [["orders"], ["memory", "\\boom\\b", "out of memory", "killed", "signal 9", "sigkill"]], "unless": ["no (oom|memory)", "not (killed|out of memory)"],
+       "why": "Cause says orders-api ran out of memory and was killed"},
+      {"mustNot": "cause", "say": [["shop-db", "catalog"]],
+       "unless": ["\\bnot\\b", "n't\\b", "\\bno\\b", "healthy", "\\bfine\\b", "unrelated", "\\bok\\b", "normal", "ruled out"],
+       "why": "Cause does not blame shop-db or catalog-api"}
+    ]
+  },
+  {
+    "id": "past-outage-health",
+    "snapshot": "past-outage",
+    "plain": false,
+    "set": "holdout",
+    "title": "A health check after an outage that is already over",
+    "fault": "orders-leak",
+    "settle": 200,
+    "question": "(check_health prompt) Check the health of everything.",
+    "prompt": {"name": "check_health", "arguments": {}},
+    "truth": "Everything is healthy now, but orders-api was killed for running out of memory a few minutes ago and restarted. A check that stops at the healthy current state misses it.",
+    "rubric": [
+      {"must": "answer", "say": [["orders"], ["memory", "\\boom\\b", "out of memory", "killed", "signal 9", "sigkill", "restart"]], "unless": ["no (oom|memory|restart)", "not (killed|restarted)"],
+       "why": "reports the recent out-of-memory kill of orders-api"}
+    ]
+  },
+  {
+    "id": "past-outage-review",
+    "snapshot": "past-outage",
+    "plain": false,
+    "set": "holdout",
+    "title": "A container review after an outage that is already over",
+    "fault": "orders-leak",
+    "settle": 200,
+    "question": "(review_container prompt) Review orders-api.",
+    "prompt": {"name": "review_container", "arguments": {"target": "orders-api"}},
+    "truth": "orders-api runs normally now, but within the hour its memory reached its 512 MiB limit, it was killed (signal 9) and restarted. A review that stops at the current state misses it.",
+    "rubric": [
+      {"must": "answer", "say": [["\\boom", "out of memory", "killed", "signal 9", "sigkill", "(reached|hit) its memory limit"], ["kill", "limit", "restart", "oom", "out of memory"]], "unless": ["no (oom|kill|restart)", "not (killed|restarted)", "never"],
+       "why": "reports the recent out-of-memory kill and restart"}
+    ]
+  },
+  {
+    "id": "memory-headroom",
+    "set": "holdout",
+    "title": "Close to a limit, but not failing",
+    "fault": "near-limit",
+    "settle": 90,
+    "question": "Is anything close to running out of memory?",
+    "truth": "The indexer container uses about 90 % of its 256 MiB memory limit and holds steady: nothing has failed, but it has almost no headroom. Nothing else is close.",
+    "rubric": [
+      {"must": "answer", "near": 4, "say": [["indexer"], ["[89]\\d(\\.\\d+)? ?%", "close to", "near", "headroom", "almost", "approach", "high", "most of its"]],
+       "unless": ["plenty", "not close", "far from", "no risk", "comfortabl", "well below"],
+       "why": "names the indexer as close to its limit"},
+      {"mustNot": "answer", "say": [["indexer"], ["\\boom\\b", "out of memory kill", "was killed", "crash", "restarted"]],
+       "unless": ["\\bno\\b", "\\bnot\\b", "n't\\b", "never", "without", "nothing", "\\bnone\\b", "yet"],
+       "why": "does not claim the indexer failed"}
+    ]
+  }
+]

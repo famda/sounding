@@ -21,6 +21,10 @@ node_modules/
 /docs/product/assets/*.png
 /docs/product/assets/*.gif
 !/docs/product/assets/overview.gif
+# Taken by hand from a local model run: the generator cannot produce them (no GPU in CI)
+!/docs/product/assets/chat-*.png
+!/docs/product/assets/mcp-inspector-*.png
+!/docs/product/assets/social-*.png
 /docs/product/assets/*.png.tmp
 /docs/product/assets/*.gif.tmp
 
@@ -75,7 +79,7 @@ AGENTS.md
 CLAUDE.md
 
 # local documentation
-/docs/technical/architecture.md
+/docs/technical/**
 
 # Documentation site: files the build generates from docs/product/content and assets
 /docs/product/site/public/

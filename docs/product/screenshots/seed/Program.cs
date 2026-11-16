@@ -6,6 +6,12 @@ using Npgsql;
 using Sounding.Shared;
 
 const long GiB = 1024L * 1024 * 1024;
+var standalone = args switch
+{
+    [] => false,
+    ["standalone"] => true,
+    _ => throw new ArgumentException("Expected no arguments or 'standalone'."),
+};
 var connectionString = Environment.GetEnvironmentVariable("SOUNDING_CONNECTION_STRING")
     ?? throw new InvalidOperationException("SOUNDING_CONNECTION_STRING is not configured");
 if (new NpgsqlConnectionStringBuilder(connectionString).Database != "sounding_docs")
@@ -15,25 +21,26 @@ if (new NpgsqlConnectionStringBuilder(connectionString).Database != "sounding_do
 
 await using var database = NpgsqlDataSource.Create(connectionString);
 await DatabaseSchema.EnsureAsync(database, CancellationToken.None);
-var hosts = new[]
-{
+DemoHost[] hosts = standalone
+    ? [new DemoHost("sounding-demo", "demo-host", 4, 8 * GiB, 1, ["web-1", "client-1"])]
+    : [
     new DemoHost("demo-db", "db-01", 16, 64 * GiB, 0, ["postgres-1", "redis-1", "backup-1"]),
     new DemoHost("demo-edge", "edge-01", 8, 16 * GiB, 1, ["nginx-1", "api-1", "client-1", "auth-1", "frontend-1", "jobs-1"]),
     new DemoHost("demo-gpu", "gpu-01", 32, 128 * GiB, 2, ["trainer-1", "inference-1", "worker-1"]),
-};
+];
 var containers = hosts.SelectMany(host => host.Workloads.Select((name, index) => new DemoContainer(host, name, index))).ToArray();
 var channelDemands = new[] { Trace(48_271), Trace(55_109), Trace(71_317), Trace(39_443), Trace(63_091) };
 var traces = Enumerable.Range(0, 5).Select(channel =>
     Enumerable.Range(0, containers.Max(container => container.Profile) + 2)
         .Select(profile => Trace(7_019 + profile * 397 + channel * 7_919)).ToArray()).ToArray();
 var anchor = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-var started = anchor.AddDays(-2);
+var started = standalone ? anchor.AddMinutes(-6) : anchor.AddDays(-2);
 
 await using (var connection = await database.OpenConnectionAsync())
 await using (var transaction = await connection.BeginTransactionAsync())
 {
     await using var batch = new NpgsqlBatch(connection, transaction);
-    Add(batch, "delete from hosts where host_id = any($1)", values: [hosts.Select(host => host.Id).ToArray()]);
+    Add(batch, "delete from hosts where host_id = any($1)", values: [new[] { "demo-db", "demo-edge", "demo-gpu", "sounding-demo" }]);
     foreach (var host in hosts)
     {
         Add(batch, """
@@ -46,16 +53,19 @@ await using (var transaction = await connection.BeginTransactionAsync())
         Add(batch, """
             insert into containers (container_id, host_id, name, started_at, last_seen, process_started_at, processes, network, latest)
             values ($1, $2, $3, $4, $5, $4, $6::jsonb, $7::jsonb, $8::jsonb)
-            """, container.Id, container.Host.Id, container.Name, started, anchor,
+            """, container.Id, container.Host.Id, standalone ? container.Id : container.Name, started, anchor,
             Json(Processes(container, 360)), Json(Network(container, 360)), Json(Usage(container, 360).Detail!));
     }
     Events(batch, anchor);
-    // A finished capture on api-1, so the packet capture panel has a file to open.
-    var (capture, packets) = Capture(anchor.AddSeconds(-89));
-    Add(batch, """
-        insert into captures (container_id, requested_at, started_at, seconds, status, finished_at, packets, data)
-        values ($1, $2, $2, 10, 'done', $3, $4, $5)
-        """, "demo-edge-api-1", anchor.AddSeconds(-90), anchor.AddSeconds(-79), packets, capture);
+    if (!standalone)
+    {
+        // A finished capture on api-1, so the packet capture panel has a file to open.
+        var (capture, packets) = Capture(anchor.AddSeconds(-89));
+        Add(batch, """
+            insert into captures (container_id, requested_at, started_at, seconds, status, finished_at, packets, data)
+            values ($1, $2, $2, 10, 'done', $3, $4, $5)
+            """, "demo-edge-api-1", anchor.AddSeconds(-90), anchor.AddSeconds(-79), packets, capture);
+    }
     for (var seconds = 0; seconds <= 360; seconds++)
     {
         Samples(batch, anchor.AddSeconds(seconds - 360), seconds);
@@ -66,7 +76,7 @@ await using (var transaction = await connection.BeginTransactionAsync())
 
 var lastSecond = 360;
 await CatchUpAsync(CancellationToken.None);
-Console.WriteLine("Synthetic fleet ready: db-01, edge-01, gpu-01; twelve containers and six minutes of one-second history.");
+Console.WriteLine($"Synthetic fleet ready: {string.Join(", ", hosts.Select(host => host.Name))}; {containers.Length} containers and six minutes of one-second history.");
 
 using var stop = new CancellationTokenSource();
 Console.CancelKeyPress += (_, args) => { args.Cancel = true; stop.Cancel(); };
@@ -173,6 +183,7 @@ void Events(NpgsqlBatch batch, DateTimeOffset now)
     {
         Event(container.Name, 290, "lifecycle", "info", "Started");
     }
+    if (standalone) return;
     Event("jobs-1", 250, "process", "info", "Started report-builder (pid 311)");
     Event("jobs-1", 236, "destination", "info", "New internet destination updates.example.com (203.0.113.80):443/tcp");
     Event("nginx-1", 205, "port", "info", "Listening on 8443/tcp (nginx)");
@@ -250,6 +261,13 @@ HostSnapshot Snapshot(DemoHost host, double seconds)
 
 ContainerUsage Usage(DemoContainer container, double seconds)
 {
+    if (standalone)
+    {
+        var cpu = CpuCores(container, seconds);
+        return new ContainerUsage(cpu / container.Host.Cores * 100, cpu, null, 32 * 1024 * 1024, null,
+            0, 0, ReceiveRate(container, seconds), TransmitRate(container, seconds),
+            Detail: new ContainerDetail(null, null, null, 2, null, null, new MemoryEvents(0, 0, 0, 0), [], [], null));
+    }
     var activity = Activity(seconds, container.Profile);
     var cores = CpuCores(container, seconds);
     var memory = (long)(container.MemoryLimit * (0.6 + 0.32 * MemoryActivity(seconds, container.Profile)));
@@ -309,6 +327,9 @@ ContainerUsage Usage(DemoContainer container, double seconds)
 List<LogLine> Output(DemoContainer container, double seconds)
 {
     var now = anchor.AddSeconds(seconds - 360);
+    if (standalone) return container.Name == "web-1"
+        ? [new(now, "stdout", "info", "GET / HTTP/1.1 200")]
+        : [];
     List<LogLine> lines =
     [
         new(now, "stdout", "info", "Request completed: GET /api/orders 200 in 12 ms"),
@@ -325,7 +346,8 @@ List<LogLine> Output(DemoContainer container, double seconds)
 List<ProcessUsage> Processes(DemoContainer container, double seconds)
 {
     var usage = Usage(container, seconds);
-    var name = container.Name[..container.Name.LastIndexOf('-')];
+    var name = standalone ? container.Name == "web-1" ? "nginx" : "wget"
+        : container.Name[..container.Name.LastIndexOf('-')];
     var cpuSeconds = 1000.0;
     var readBytes = 1e8;
     var writeBytes = 2e8;
@@ -353,6 +375,26 @@ List<ProcessUsage> Processes(DemoContainer container, double seconds)
 
 NetworkActivity Network(DemoContainer container, double seconds)
 {
+    if (standalone)
+    {
+        var client = container.Name == "client-1";
+        var peer = containers.Single(peer => peer.Name == (client ? "web-1" : "client-1"));
+        var process = client ? "wget" : "nginx";
+        var receive = ReceiveRate(container, seconds);
+        var transmit = TransmitRate(container, seconds);
+        return new NetworkActivity("packets", null,
+            [new Connection("TCP", peer.Address, client ? 80 : 42000, client ? "web" : "client",
+                client ? 42000 : 80, false, false, (long)(seconds * transmit), (long)(seconds * receive),
+                transmit, receive, 1, 0, "ESTABLISHED", 21, process, "root",
+                HandshakeMs: 0.2, HttpRequest: "GET /", HttpStatus: 200, HttpResponseMs: 0.8,
+                Zone: "network", RttMs: 0.2, Problems: [])], 1,
+            client ? [] : [new Listener("TCP", "0.0.0.0", 80, false, 21, "nginx", "root")],
+            client ? [new DnsLookup("web", "NOERROR", [peer.Address], 60, 0, 0.3)] : [],
+            Addresses: [container.Address],
+            Requests: [new RequestStats("http", client ? "client" : "server", peer.Address, client ? "web" : "client",
+                80, "GET /", 0.5, 0, 0.8, 1.2, 80, 800, 1, process)],
+            Networks: ["10.20.0.0/24"]);
+    }
     string[] names = container.Name switch
     {
         "nginx-1" => [],
@@ -418,19 +460,22 @@ NetworkActivity Network(DemoContainer container, double seconds)
 }
 
 double CpuCores(DemoContainer container, double seconds) =>
-    container.CpuLimit * (0.28 + 0.68 * Activity(seconds, container.Profile));
+    standalone ? 0.003 + 0.004 * Activity(seconds, container.Profile)
+        : container.CpuLimit * (0.28 + 0.68 * Activity(seconds, container.Profile));
 
 double ReadRate(DemoContainer container, double seconds) =>
-    (0.22 + 0.78 * Math.Pow(Activity(seconds, container.Profile, 1), 1.5)) * (container.Host.Index == 0 ? 320e6 : 85e6);
+    standalone ? 0 : (0.22 + 0.78 * Math.Pow(Activity(seconds, container.Profile, 1), 1.5)) * (container.Host.Index == 0 ? 320e6 : 85e6);
 
 double WriteRate(DemoContainer container, double seconds) =>
-    (0.20 + 0.80 * Math.Pow(Activity(seconds - 3, container.Profile, 1), 1.4)) * (container.Index == 0 ? 200e6 : 100e6);
+    standalone ? 0 : (0.20 + 0.80 * Math.Pow(Activity(seconds - 3, container.Profile, 1), 1.4)) * (container.Index == 0 ? 200e6 : 100e6);
 
 double ReceiveRate(DemoContainer container, double seconds) =>
-    (0.24 + 0.76 * Math.Pow(Activity(seconds, container.Profile, 2), 1.5)) * (container.Name == "backup-1" ? 250e6 : 95e6);
+    standalone ? container.Name == "client-1" ? 400 : 40
+        : (0.24 + 0.76 * Math.Pow(Activity(seconds, container.Profile, 2), 1.5)) * (container.Name == "backup-1" ? 250e6 : 95e6);
 
 double TransmitRate(DemoContainer container, double seconds) =>
-    (0.22 + 0.78 * Math.Pow(Activity(seconds - 1, container.Profile, 2), 1.4)) * (container.Name == "postgres-1" ? 210e6 : 70e6);
+    standalone ? container.Name == "client-1" ? 40 : 400
+        : (0.22 + 0.78 * Math.Pow(Activity(seconds - 1, container.Profile, 2), 1.4)) * (container.Name == "postgres-1" ? 210e6 : 70e6);
 
 double Activity(double seconds, int profile, int channel = 0) =>
     (channel == 4 ? 0.75 : channel == 0 ? 0.65 : 0.55) * At(channelDemands[channel], seconds)

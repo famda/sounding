@@ -90,6 +90,8 @@ public sealed class FleetView(FleetState state, long sampledAt)
     private readonly IReadOnlyDictionary<string, IReadOnlyList<ContainerState>> _containers =
         state.Hosts.ToDictionary(host => host.HostId, host => host.Containers);
 
+    public FleetState State => state;
+
     public FleetUpdate ForHosts(IReadOnlySet<string> hostIds, IReadOnlySet<string>? containerIds = null) => new(
         state.Timestamp,
         hostIds.Count == 0 ? _hosts : [.. _hosts.Select(host => hostIds.Contains(host.HostId)

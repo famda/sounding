@@ -23,7 +23,21 @@ export function imagePath(filename) {
   return path.join('/captures', themedFilename);
 }
 
+// Only what the screenshot shows: off-screen panels redraw every few seconds by design, so waiting for them adds
+// seconds per capture without changing the image.
+async function loaded(page) {
+  await page.waitForFunction(() => ![...document.querySelectorAll('div')].some(element => {
+    if (element.childElementCount || !/^Loading(?:…|\.{3})$/.test(element.textContent)) return false;
+    const box = element.getBoundingClientRect();
+    const top = Math.max(box.top, 0), bottom = Math.min(box.bottom, innerHeight);
+    if (!box.width || bottom <= top) return false;
+    // Scrolled under the header counts as hidden.
+    return element.contains(document.elementFromPoint(box.left + box.width / 2, (top + bottom) / 2));
+  }));
+}
+
 export async function capturePage(page, filename, { animations = 'disabled' } = {}) {
+  await loaded(page);
   await page.mouse.move(1435, 895);
   await page.screenshot({
     path: imagePath(filename), fullPage: false, animations,
@@ -48,6 +62,7 @@ export async function captureLiveAnimation(page, filename, { seconds, fps }) {
     acknowledgements.push(session.send('Page.screencastFrameAck', { sessionId: frame.sessionId }));
   });
   try {
+    await loaded(page);
     await page.mouse.move(1435, 895);
     await session.send('Page.startScreencast', { format: 'png', maxWidth: viewport.width, maxHeight: viewport.height });
     await page.waitForTimeout(seconds * 1000);
@@ -86,6 +101,7 @@ export async function captureAnimation(page, filename, { frames, fps, beforeFram
   const directory = await mkdtemp(path.join(os.tmpdir(), 'sounding-animation-'));
   const files = [];
   try {
+    await loaded(page);
     await page.mouse.move(1435, 895);
     for (let frame = 0; frame < frames; frame++) {
       await beforeFrame(frame, frames);
@@ -107,8 +123,8 @@ export async function openDashboard(page, url = '/') {
   const { searchParams } = new URL(url, 'http://dashboard:8080');
   const host = searchParams.get('host');
   const container = searchParams.get('container');
-  const historyPath = container ? `/api/containers/${encodeURIComponent(container)}/history`
-    : host ? `/api/hosts/${encodeURIComponent(host)}/history` : '/api/fleet/history';
+  const historyPath = container ? `/api/v1/containers/${encodeURIComponent(container)}/history`
+    : host ? `/api/v1/hosts/${encodeURIComponent(host)}/history` : '/api/v1/fleet/history';
   const historyReady = page.waitForResponse(response =>
     new URL(response.url()).pathname === historyPath && response.status() === 200);
   await page.goto(url);
@@ -116,7 +132,7 @@ export async function openDashboard(page, url = '/') {
   await (await historyReady).finished();
   await page.getByRole('banner').getByText('Live', { exact: true }).waitFor();
   await page.locator('.recharts-surface').first().waitFor();
-  await page.getByText(/^Loading(?:\u2026|\.{3})$/).first().waitFor({ state: 'detached' });
+  await loaded(page);
   await page.evaluate(() => document.fonts.ready);
   await page.mouse.move(1435, 895);
 }

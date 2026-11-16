@@ -30,5 +30,76 @@ services:
       retries: 30
     restart: unless-stopped
 
+  # Development tool for the dashboard's MCP endpoint; only started with the "tools" profile (platform.ps1 start).
+  # Opens with Sounding already listed (.config/sounding/mcp.json); no sign-in token.
+  mcp-inspector:
+    image: ghcr.io/modelcontextprotocol/inspector:2.15.0
+    profiles: [tools]
+    ports: ["127.0.0.1:6274:6274"]
+    environment:
+      # Safe only because the port is bound to loopback.
+      DANGEROUSLY_BIND_ALL_INTERFACES: "true"
+      # Dev only: never carry this to a deployed environment.
+      DANGEROUSLY_OMIT_AUTH: "true"
+      ALLOWED_ORIGINS: "http://localhost:6274,http://127.0.0.1:6274"
+      MCP_CATALOG_PATH: /home/node/.mcp-inspector/mcp.json
+      # Secrets typed into the UI stay in memory, out of the catalog file.
+      MCP_INSPECTOR_SECRET_STORE: memory
+    volumes:
+      # Writable: the inspector rewrites the catalog when servers are edited.
+      - ./.config/sounding/mcp.json:/home/node/.mcp-inspector/mcp.json
+    depends_on:
+      - dashboard
+    restart: unless-stopped
+
+  # Development tool: a chat app with a local model, connected to the dashboard's MCP endpoint, to try questions by
+  # hand. Only started with the "tools" profile; opens on http://localhost:3000 with no sign-in and Sounding's tools
+  # switched on in every chat. Outside the samples, so the model's load is not in the data it is asked about.
+  chat:
+    image: ghcr.io/open-webui/open-webui:v0.13.3
+    profiles: [tools]
+    ports: ["127.0.0.1:3000:8080"]
+    environment:
+      OLLAMA_BASE_URL: http://chat-model:11434
+      # Dev only, and safe only because the port is bound to loopback. The session secret is generated into the
+      # chat volume on first start.
+      WEBUI_AUTH: "False"
+      DEFAULT_MODELS: qwen3.5:9b
+      TOOL_SERVER_CONNECTIONS: >-
+        [{"type": "mcp", "url": "http://dashboard:8080/mcp", "path": "", "auth_type": "none", "key": "",
+          "config": {"enable": true}, "info": {"id": "sounding", "name": "Sounding"}}]
+      DEFAULT_MODEL_METADATA: '{"toolIds": ["server:mcp:sounding"]}'
+    volumes:
+      - chat:/app/backend/data
+    depends_on: [dashboard, chat-model]
+    restart: unless-stopped
+
+  # The chat's model server.
+  # platform.ps1 start adds the GPU (docker-compose.gpu.yml) when nvidia-smi finds one.
+  chat-model:
+    image: ollama/ollama:0.40.16
+    profiles: [tools]
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "65536"
+      OLLAMA_KEEP_ALIVE: 30m
+    volumes:
+      - models:/root/.ollama
+    restart: unless-stopped
+
+  # Pulls the chat's model once (a no-op when it is already there), then exits.
+  chat-model-pull:
+    image: ollama/ollama:0.40.16
+    profiles: [tools]
+    environment:
+      OLLAMA_HOST: chat-model:11434
+    command: ["pull", "qwen3.5:9b"]
+    depends_on: [chat-model]
+    restart: on-failure
+
 volumes:
   pgdata:
+  chat:
+  # Created by platform.ps1 and shared with the evals' model, so each model downloads once.
+  models:
+    name: sounding-models
+    external: true

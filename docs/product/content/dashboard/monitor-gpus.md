@@ -4,8 +4,7 @@ description: See how busy each NVIDIA card is, and how much of it each container
 ---
 
 GPU monitoring is optional and applies to NVIDIA GPUs. The GPU page answers two questions: **how busy is each card**,
-and **how much of it does each container use**. They're measured differently, and the answers don't always add up: a
-card can be busy with work outside your monitored containers.
+and **how much of it does each container use**. 
 
 ![The GPU page of a host](../../assets/host-gpu.png)
 

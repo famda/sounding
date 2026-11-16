@@ -3,7 +3,6 @@ import { mkdir, rm } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const baseURL = 'http://dashboard:8080';
-const hosts = ['demo-db', 'demo-edge', 'demo-gpu'];
 
 async function waitForDashboard() {
   const deadline = Date.now() + 60_000;
@@ -21,8 +20,8 @@ async function waitForDashboard() {
   throw new Error('Documentation dashboard did not become ready.', { cause: failure });
 }
 
-async function waitForFleet() {
-  const response = await fetch(`${baseURL}/api/fleet/stream?hosts=${hosts.join(',')}`, {
+async function waitForFleet(hosts) {
+  const response = await fetch(`${baseURL}/api/v1/fleet/stream?hosts=${hosts.join(',')}`, {
     signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error(`Fleet stream returned HTTP ${response.status}`);
@@ -47,10 +46,12 @@ async function waitForFleet() {
   }
 }
 
-export default async function setup() {
-  await rm('/captures', { recursive: true, force: true });
-  await mkdir('/captures');
-  const seed = spawn('/seed/Sounding.Demo', { stdio: ['ignore', 'pipe', 'inherit'] });
+export default async function setup(config) {
+  const standalone = config.metadata.standaloneDemo === true;
+  const hosts = standalone ? ['sounding-demo'] : ['demo-db', 'demo-edge', 'demo-gpu'];
+  if (!standalone) await rm('/captures', { recursive: true, force: true });
+  await mkdir('/captures', { recursive: true });
+  const seed = spawn('/seed/Sounding.Demo', standalone ? ['standalone'] : [], { stdio: ['ignore', 'pipe', 'inherit'] });
   const exited = new Promise(resolve => seed.once('exit', resolve));
   const ready = new Promise((resolve, reject) => {
     let output = '';
@@ -77,7 +78,7 @@ export default async function setup() {
       delay(60_000, undefined, { ref: false }).then(() => { throw new Error('Documentation seeding timed out.'); }),
     ]);
     await waitForDashboard();
-    await waitForFleet();
+    await waitForFleet(hosts);
   } catch (error) {
     await stop();
     throw error;

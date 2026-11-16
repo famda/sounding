@@ -308,6 +308,16 @@ public sealed class FleetRepository(NpgsqlDataSource dataSource, IOptions<Dashbo
             rows.Select(r => r.GpuMem).ToArray());
     }
 
+    // The highest memory sample in the window, unaveraged: a climb to the limit lasts seconds before a kill.
+    public async Task<long?> GetPeakMemoryAsync(string containerId, TimeSpan window, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(
+            "select max(memory_bytes) from container_samples where container_id = @id and ts > now() - @window");
+        command.Parameters.AddWithValue("id", containerId);
+        command.Parameters.AddWithValue("window", window);
+        return await command.ExecuteScalarAsync(cancellationToken) is long peak ? peak : null;
+    }
+
     public async Task<SeriesHistory> GetContainerDetailHistoryAsync(string containerId, TimeSpan window, CancellationToken cancellationToken)
     {
         var bucket = Bucket(window);
@@ -591,28 +601,168 @@ public sealed class FleetRepository(NpgsqlDataSource dataSource, IOptions<Dashbo
         return result;
     }
 
-    public async Task<IReadOnlyList<HostEvent>> GetHostEventsAsync(string hostId, TimeSpan window, CancellationToken cancellationToken)
+    public async Task<EventPage> GetEventsAsync(EventFilter filter, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand("""
-            select ts, container_id, kind, level, message
+        if (filter.HostIds.Count == 0) return new EventPage([], false);
+        await using var command = dataSource.CreateCommand($"""
+            select ts, container_id, kind, level, message, host_id
             from events
-            where host_id = @id and ts > now() - @window
-            order by ts desc
-            limit 1000
+            where host_id = any(@hosts) and ts > now() - @window
+              and (@container::text is null or container_id = @container)
+              and (@levels::text[] is null or level = any(@levels))
+              and (@kinds::text[] is null or kind = any(@kinds))
+              and (not @significant or level <> 'info' or kind = 'lifecycle')
+              and (not @skipRoutine or level <> 'info' or kind <> 'process')
+            order by {(filter.SevereFirst ? "case level when 'error' then 2 when 'warning' then 1 else 0 end desc, ts desc" : "ts desc")}
+            limit @limit
             """);
-        command.Parameters.AddWithValue("id", hostId);
-        command.Parameters.AddWithValue("window", window);
+        command.Parameters.AddWithValue("hosts", filter.HostIds as string[] ?? [.. filter.HostIds]);
+        command.Parameters.AddWithValue("window", filter.Window);
+        command.Parameters.AddWithValue("container", NpgsqlTypes.NpgsqlDbType.Text, (object?)filter.ContainerId ?? DBNull.Value);
+        command.Parameters.AddWithValue("levels", NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Text, (object?)Values(filter.Levels) ?? DBNull.Value);
+        command.Parameters.AddWithValue("kinds", NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Text, (object?)Values(filter.Kinds) ?? DBNull.Value);
+        command.Parameters.AddWithValue("significant", filter.Significant);
+        command.Parameters.AddWithValue("skipRoutine", filter.SkipRoutineProcesses);
+        // One more than asked for says whether the window held more.
+        command.Parameters.AddWithValue("limit", filter.Limit + 1);
 
-        var result = new List<HostEvent>();
+        var result = new List<HostEvent>(Math.Min(filter.Limit + 1, 256));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
             result.Add(new HostEvent(reader.GetFieldValue<DateTimeOffset>(0), reader.IsDBNull(1) ? null : reader.GetString(1),
-                reader.GetString(2), reader.GetString(3), reader.GetString(4)));
+                reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5)));
+        }
+
+        var truncated = result.Count > filter.Limit;
+        if (truncated) result.RemoveAt(result.Count - 1);
+        return new EventPage(result, truncated);
+
+        static string[]? Values(IReadOnlyList<string>? values) => values is null ? null : values as string[] ?? [.. values];
+    }
+
+    // A container the fleet view no longer shows (stopped or offline beyond the hide delays) while its rows are kept:
+    // by id, id prefix or name. One row per lineage (the same name on the same host: a container recreated under its
+    // name), so that many incarnations of one service cannot hide another service that matches too. A lineage is
+    // represented by the container whose id was given, else its most recently seen one; exact matches come first.
+    public async Task<IReadOnlyList<(string HostId, string HostName, ContainerState Container)>> FindContainerRecordsAsync(string key, int limit, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("""
+            select * from (
+                select distinct on (w.host_id, coalesce(lower(w.name), w.container_id))
+                       w.container_id, w.host_id, h.display_name, w.name, w.started_at, w.last_seen,
+                       case when w.stopped_at is not null then 'stopped' when w.last_seen > now() - @stale then 'online' else 'offline' end,
+                       w.restarts, w.exit_code, w.exit_signal, w.stop_seconds,
+                       w.container_id = @key as exact_id, lower(w.name) = lower(@key) as exact_name
+                from containers w
+                join hosts h on h.host_id = w.host_id
+                where w.container_id = @key
+                   or (length(@key) >= 4 and w.container_id like @prefix)
+                   or w.name ilike @pattern
+                order by w.host_id, coalesce(lower(w.name), w.container_id), w.container_id = @key desc, w.last_seen desc
+            ) lineages
+            order by exact_id desc, exact_name desc nulls last, last_seen desc
+            limit @limit
+            """);
+        command.Parameters.AddWithValue("key", key);
+        command.Parameters.AddWithValue("prefix", EscapeLike(key) + "%");
+        command.Parameters.AddWithValue("pattern", "%" + EscapeLike(key) + "%");
+        command.Parameters.AddWithValue("stale", _staleAfter);
+        command.Parameters.AddWithValue("limit", limit);
+
+        var result = new List<(string, string, ContainerState)>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add((reader.GetString(1), reader.GetString(2), new ContainerState(
+                reader.GetString(0), reader.GetString(6), IsLeader: false,
+                reader.GetFieldValue<DateTimeOffset>(4), reader.GetFieldValue<DateTimeOffset>(5), SampledAt: null, Usage: null,
+                reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetInt32(7),
+                reader.IsDBNull(8) ? null : reader.GetInt32(8), reader.IsDBNull(9) ? null : reader.GetInt32(9),
+                reader.IsDBNull(10) ? null : reader.GetDouble(10))));
         }
 
         return result;
     }
+
+    // A host the fleet view no longer shows while its rows are kept: by id, id prefix or name, exact matches and the
+    // most recently seen first.
+    public async Task<IReadOnlyList<HostState>> FindHostRecordsAsync(string key, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("""
+            select host_id, display_name, last_seen
+            from hosts
+            where host_id = @key
+               or (length(@key) >= 4 and host_id like @prefix)
+               or display_name ilike @pattern
+            order by (host_id = @key or lower(display_name) = lower(@key)) desc, last_seen desc
+            limit 10
+            """);
+        command.Parameters.AddWithValue("key", key);
+        command.Parameters.AddWithValue("prefix", EscapeLike(key) + "%");
+        command.Parameters.AddWithValue("pattern", "%" + EscapeLike(key) + "%");
+
+        var result = new List<HostState>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new HostState(reader.GetString(0), reader.GetString(1), Online: false,
+                reader.GetFieldValue<DateTimeOffset>(2), LeaderContainerId: null, Latest: null, Containers: []));
+        }
+
+        return result;
+    }
+
+    // Containers that stopped within the lookback and that no running container on the same host has replaced (same
+    // name): the same name on another host is another container.
+    public async Task<IReadOnlyList<(string HostId, ContainerState Container)>> GetStoppedContainersAsync(string? hostId, TimeSpan lookback, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("""
+            select w.container_id, w.host_id, w.name, w.started_at, w.stopped_at, w.restarts, w.exit_code, w.exit_signal, w.stop_seconds
+            from containers w
+            where w.stopped_at > now() - @lookback
+              and (@host::text is null or w.host_id = @host)
+              and not exists (
+                  select 1 from containers r
+                  where r.host_id = w.host_id and r.name = w.name and r.stopped_at is null and r.last_seen > now() - @stale)
+            order by w.stopped_at desc
+            limit 50
+            """);
+        command.Parameters.AddWithValue("lookback", lookback);
+        command.Parameters.AddWithValue("host", NpgsqlTypes.NpgsqlDbType.Text, (object?)hostId ?? DBNull.Value);
+        command.Parameters.AddWithValue("stale", _staleAfter);
+
+        var result = new List<(string, ContainerState)>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add((reader.GetString(1), new ContainerState(
+                reader.GetString(0), ContainerStatus.Stopped, IsLeader: false,
+                reader.GetFieldValue<DateTimeOffset>(3), reader.GetFieldValue<DateTimeOffset>(4), SampledAt: null, Usage: null,
+                reader.IsDBNull(2) ? null : reader.GetString(2), reader.GetInt32(5),
+                reader.IsDBNull(6) ? null : reader.GetInt32(6), reader.IsDBNull(7) ? null : reader.GetInt32(7),
+                reader.IsDBNull(8) ? null : reader.GetDouble(8))));
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyDictionary<string, (string HostId, string? Name)>> GetContainerNamesAsync(IReadOnlyCollection<string> containerIds, CancellationToken cancellationToken)
+    {
+        var names = new Dictionary<string, (string, string?)>();
+        if (containerIds.Count == 0) return names;
+        await using var command = dataSource.CreateCommand("select container_id, host_id, name from containers where container_id = any(@ids)");
+        command.Parameters.AddWithValue("ids", containerIds.ToArray());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            names[reader.GetString(0)] = (reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2));
+        }
+
+        return names;
+    }
+
+    private static string EscapeLike(string value) => value.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 
     // Asks the container's agent for a capture: it hears the notification on its own connection.
     public async Task<long?> RequestCaptureAsync(string containerId, int seconds, CancellationToken cancellationToken)

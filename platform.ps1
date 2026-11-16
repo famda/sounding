@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Start the samples, generate or preview documentation, or run the Docker test suite.
+Start the samples, generate or preview documentation, run the Docker test suite, or evaluate the MCP tools.
 
 .DESCRIPTION
 Single entry point for the solution's isolated Docker Compose stacks.
@@ -22,6 +22,10 @@ Run the baseline suite (unit + integration + E2E).
 Run E2E flows only at full speed.
 
 .EXAMPLE
+.\platform.ps1 evals run slow-db
+Check that a local model finds the cause of a slow database through the MCP tools.
+
+.EXAMPLE
 .\platform.ps1 setup
 Link .claude/skills to .agents/skills so Claude Code discovers the shared skills.
 
@@ -32,19 +36,28 @@ Remove every container, image, volume, and build cache on this machine, then res
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('start', 'stop', 'status', 'test', 'docs', 'setup', 'purge', 'help')]
+    [ValidateSet('start', 'stop', 'status', 'test', 'docs', 'evals', 'setup', 'purge', 'help')]
     [string] $Command = 'help',
 
-    # test suite or docs action.
+    # test suite, docs action or evals action.
     [Parameter(Position = 1)]
-    [ValidateSet('all', 'unit', 'e2e', 'start', 'generate')]
+    [ValidateSet('all', 'unit', 'e2e', 'start', 'generate', 'list', 'run', 'report', 'record')]
     [string] $Suite = 'all',
+
+    # evals run/record: one case, or the tuning or holdout set (default: all).
+    [Parameter(Position = 2)]
+    [string] $Case = '',
 
     # start: wipe this project's volumes first.
     [switch] $Clean,
 
     # test: leave the test stack up afterwards to inspect it in Aspire.
     [switch] $Keep,
+    # evals run: attempts per case.
+    [ValidateRange(1, 50)]
+    [int] $Repeat = 1,
+    # evals run/report: an earlier run to compare with.
+    [string] $Baseline = '',
     # test: Playwright SlowMo in ms (compose default 500).
     [int] $SlowMo = -1,
     # test: do not record the per-test videos.
@@ -64,7 +77,9 @@ $DevProject = 'sounding'
 $SamplesProject = 'sounding-samples'
 $CaptureProject = 'sounding-docs'
 $SiteProject = 'sounding-docs-site'
-$ManagedProjects = @($DevProject, $SamplesProject, 'sounding-examples', $CaptureProject, $SiteProject)
+$EvalsProject = 'sounding-evals'
+$EvalsEnvironmentProject = 'sounding-evals-env'
+$ManagedProjects = @($DevProject, $SamplesProject, 'sounding-examples', $CaptureProject, $SiteProject, $EvalsProject, $EvalsEnvironmentProject)
 $TestProject = 'sounding-test'
 $EnvFile = '.env'
 $DevFiles = @('docker-compose.yml')
@@ -99,8 +114,9 @@ function Test-ProjectExists([string] $Project) {
 }
 
 function Get-DevCompose {
-    $compose = @('compose', '--env-file', $EnvFile, '-p', $DevProject)
+    $compose = @('compose', '--env-file', $EnvFile, '-p', $DevProject, '--profile', 'tools')
     foreach ($file in $DevFiles) { $compose += @('-f', $file) }
+    if ($script:HasGpu) { $compose += @('-f', 'docker-compose.gpu.yml') }
     return $compose
 }
 
@@ -113,6 +129,8 @@ function Test-NvidiaGpu {
 function Get-SamplesCompose {
     $compose = @('compose', '--env-file', $EnvFile, '-p', $SamplesProject, '-f', 'samples/docker-compose.yml')
     if ($script:HasGpu) { $compose += @('--profile', 'gpu') }
+    # The simulated users ask the assistant only when its profile runs.
+    $env:SAMPLES_ASSISTANT = if ($script:HasGpu) { '1' } else { '0' }
     return $compose
 }
 
@@ -145,6 +163,15 @@ function Assert-EnvFile {
 function Show-DevUrls {
     Write-Host ''
     Write-Host '  Dashboard         http://localhost:8080'
+    Write-Host '  REST API          http://localhost:8080/api/docs'
+    Write-Host '  MCP endpoint      http://localhost:8080/mcp'
+    Write-Host '  MCP Inspector     http://localhost:6274 (Sounding already listed)'
+    Write-Host '  Chat              http://localhost:3000 (local model, Sounding tools on)'
+}
+
+# The models volume is shared by the chat's model and the evals' model: created here, so neither project owns it.
+function Assert-ModelsVolume {
+    Invoke-Docker -Query @('volume', 'create', 'sounding-models') | Out-Null
 }
 
 function Stop-Project([string] $Project) {
@@ -176,8 +203,9 @@ function Invoke-Start {
     $up = @('up', '-d', '--remove-orphans')
     if ($NoBuild) { $up += '--no-build' } else { $up += '--build' }
 
-    Write-Step 'Starting the dashboard and database'
-    Invoke-Docker ($compose + $up + @('db', 'dashboard'))
+    Write-Step 'Starting'
+    Assert-ModelsVolume
+    Invoke-Docker ($compose + $up + @('db', 'dashboard', 'mcp-inspector', 'chat', 'chat-model', 'chat-model-pull'))
     Write-Step $(if ($script:HasGpu) { 'Starting the samples, with ollama on the NVIDIA GPU' } else { 'Starting the samples (no NVIDIA GPU: ollama skipped)' })
     Invoke-Docker ($samples + $up)
 
@@ -304,6 +332,129 @@ function Invoke-Test {
     }
 }
 
+# Docker's own progress output is noise here: it is kept and shown only when the step fails.
+function Invoke-DockerQuietly([string[]] $Arguments) {
+    $output = & docker @Arguments 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $output | ForEach-Object { Write-Host $_ }
+        throw "docker $($Arguments -join ' ') exited with code $LASTEXITCODE"
+    }
+}
+
+# What the code under test is: the commit, and a hash of every uncommitted change to the dashboard, the samples and
+# the evals (tracked or not), so that two runs of different working trees never look alike. Read-only Git commands.
+function Get-ImplementationFingerprint {
+    $head = (& git rev-parse --short=12 HEAD 2>$null)
+    if (-not $head) { return 'no-git' }
+    $paths = @('src', 'samples', 'evals', ':(exclude)evals/out', ':(exclude)evals/snapshots')
+    $dirty = @(& git status --porcelain=v1 -uall -- @paths 2>$null)
+    if ($dirty.Count -eq 0) { return $head }
+    $hash = [System.Security.Cryptography.IncrementalHash]::CreateHash([System.Security.Cryptography.HashAlgorithmName]::SHA256)
+    $hash.AppendData([System.Text.Encoding]::UTF8.GetBytes(((& git diff HEAD -- @paths 2>$null) -join "`n")))
+    foreach ($line in $dirty | Where-Object { $_.StartsWith('??') }) {
+        $file = $line.Substring(3).Trim('"')
+        $hash.AppendData([System.Text.Encoding]::UTF8.GetBytes($file))
+        if (Test-Path -LiteralPath $file -PathType Leaf) { $hash.AppendData([System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $file))) }
+    }
+    return "$head+dirty-$([Convert]::ToHexString($hash.GetHashAndReset()).Substring(0, 12).ToLowerInvariant())"
+}
+
+# The runner without the environment, for planning and reporting: it only reads and writes files.
+function Invoke-EvalRunner([string[]] $Arguments) {
+    $out = Join-Path $PSScriptRoot 'evals/out'
+    $snapshots = Join-Path $PSScriptRoot 'evals/snapshots'
+    New-Item -ItemType Directory -Force $out | Out-Null
+    & docker run --rm -v "${out}:/out" -v "${snapshots}:/snapshots" -e "IMPLEMENTATION=$(Get-ImplementationFingerprint)" `
+        "$EvalsProject-runner" @Arguments | Out-Host
+    return $LASTEXITCODE
+}
+
+function Get-SnapshotName($Case) { if ($Case.PSObject.Properties['snapshot']) { $Case.snapshot } else { $Case.id } }
+
+# evals list | run [case | tuning | holdout] | report | record [case]. A run replays each case's recorded snapshot with
+# the database clock held at the moment it was taken, in every form the case has (plain question, server prompt).
+function Invoke-Evals {
+    $scenarios = Get-Content 'evals/scenarios.json' -Raw | ConvertFrom-Json
+    $evals = @('compose', '--progress', 'quiet', '--env-file', $EnvFile, '-p', $EvalsProject, '-f', 'evals/docker-compose.yml')
+    $live = @('compose', '--progress', 'quiet', '--env-file', $EnvFile, '-p', $EvalsEnvironmentProject, '-f', 'evals/environment/docker-compose.yml')
+    $faulty = $live + @('--profile', 'faults')
+
+    if ($Suite -eq 'list') {
+        $scenarios | ForEach-Object {
+            $forms = @(if (-not $_.PSObject.Properties['plain'] -or $_.plain) { 'question' }) + @(if ($_.PSObject.Properties['prompt']) { $_.prompt.name })
+            [pscustomobject]@{ Case = $_.id; Set = $_.set; Asked = $forms -join ', '; Tests = $_.title }
+        } | Format-Table -AutoSize
+        return
+    }
+    if ($Suite -notin 'run', 'report', 'record') { throw 'Usage: .\platform.ps1 evals list | run [case] | report | record [case]' }
+
+    Invoke-DockerQuietly ($evals + @('build', '--quiet', 'runner'))
+    if ($Suite -eq 'report') {
+        $arguments = @('report')
+        if ($Baseline) { $arguments += @('--baseline', $Baseline) }
+        $script:exitCode = Invoke-EvalRunner $arguments
+        return
+    }
+
+    $selected = @(if (-not $Case) { $scenarios }
+        elseif ($Case -in 'tuning', 'holdout') { $scenarios | Where-Object set -eq $Case }
+        else { $scenarios | Where-Object id -eq $Case })
+    if ($selected.Count -eq 0) { throw "No case '$Case'. See: .\platform.ps1 evals list" }
+    Assert-EnvFile
+
+    if ($Suite -eq 'record') {
+        # A case that replays another's snapshot is recorded through that one.
+        $selected = @($selected | Where-Object { -not $_.PSObject.Properties['snapshot'] })
+        Invoke-DockerQuietly ($faulty + @('build', '--quiet'))
+        try {
+            foreach ($scenario in $selected) {
+                Invoke-DockerQuietly ($faulty + @('down', '--remove-orphans'))
+                # Up starts everything but the faulty containers, which the runner starts when the case says so.
+                Invoke-DockerQuietly ($live + @('up', '-d'))
+                Invoke-DockerQuietly ($faulty + @('create', 'worker', 'reports-batch', 'exporter', 'indexer'))
+                & docker @($evals + @('run', '--rm', '--no-deps', 'runner', 'record', $scenario.id))
+                if ($LASTEXITCODE -ne 0) { $script:exitCode = 1 }
+            }
+        }
+        finally { Invoke-DockerQuietly ($faulty + @('down', '--remove-orphans')) }
+        return
+    }
+
+    $missing = @($selected | Where-Object { -not (Test-Path "evals/snapshots/$(Get-SnapshotName $_).sql.gz") })
+    if ($missing.Count) { throw "Not recorded yet: $($missing.id -join ', '). Record with: .\platform.ps1 evals record <case>" }
+
+    Assert-ModelsVolume
+    if (Test-NvidiaGpu) { $evals += @('-f', 'evals/docker-compose.gpu.yml') }
+    else { Write-Warning 'No NVIDIA GPU found: the model runs on the processor, and each answer can take many minutes.' }
+    $implementation = Get-ImplementationFingerprint
+    $run = Get-Date -Format 'yyyyMMdd-HHmmss'
+    Invoke-DockerQuietly ($live + @('build', '--quiet', 'dashboard'))
+    Invoke-DockerQuietly ($evals + @('up', '-d', 'model'))
+    if ((Invoke-EvalRunner (@('plan', $run, "$Repeat") + @($selected.id))) -ne 0) { throw 'Could not plan the run.' }
+    Invoke-DockerQuietly ($faulty + @('down', '--remove-orphans'))
+    Invoke-DockerQuietly ($live + @('up', '-d', 'db', 'dashboard'))
+
+    try {
+        foreach ($scenario in $selected) {
+            $forms = @()
+            if (-not $scenario.PSObject.Properties['plain'] -or $scenario.plain) { $forms += , @() }
+            if ($scenario.PSObject.Properties['prompt']) { $forms += , @('--prompt') }
+            foreach ($form in $forms) {
+                foreach ($attempt in 1..$Repeat) {
+                    & docker @($evals + @('run', '--rm', '-e', "RUN_ID=$run", '-e', "ATTEMPT=$attempt", '-e', "IMPLEMENTATION=$implementation",
+                            'runner', 'run', $scenario.id) + $form)
+                    if ($LASTEXITCODE -ne 0) { $script:exitCode = 1 }
+                }
+            }
+        }
+    }
+    finally { Invoke-DockerQuietly ($faulty + @('down', '--remove-orphans')) }
+
+    $arguments = @('report', '--run', $run)
+    if ($Baseline) { $arguments += @('--baseline', $Baseline) }
+    if ((Invoke-EvalRunner $arguments) -ne 0) { $script:exitCode = 1 }
+}
+
 function Invoke-Setup {
     $link = Join-Path $PSScriptRoot '.claude/skills'
     $target = Join-Path $PSScriptRoot '.agents/skills'
@@ -376,6 +527,13 @@ Commands
     -Keep               leave the test stack running and print its loopback Aspire URL
     -NoBuild            use the images already built
 
+  evals list            The evaluation cases (see evals/README.md)
+  evals run [case]      Ask a local model each case through the MCP tools (all, one case, tuning or holdout)
+    -Repeat <n>         attempts per case
+    -Baseline <run>     compare with an earlier run
+  evals report          The newest run's results
+  evals record [case]   Re-record a case's snapshot (after changing the agent, schema or samples)
+
   docs start            Start the generated docs preview in the background
     -Port <port>        loopback port (default 4321)
     -NoBuild            use the preview image already built
@@ -387,16 +545,13 @@ Commands
   purge                 Remove EVERY container, image, volume and build cache on this machine (any project),
                         then reset Docker Desktop to factory defaults. No confirmation.
   help                  This text
-
-Tests are not configured yet; their template options are reserved for a future test stack.
-stop never stops containers belonging to other solutions and preserves volumes.
 '@
 }
 
 # ── Main ─────────────────────────────────────────────────────────────
 
 $savedEnv = @{}
-foreach ($name in @('PLAYWRIGHT_SLOW_MO', 'PLAYWRIGHT_RECORD_VIDEO', 'SOUNDING_DOCS_PORT')) {
+foreach ($name in @('PLAYWRIGHT_SLOW_MO', 'PLAYWRIGHT_RECORD_VIDEO', 'SOUNDING_DOCS_PORT', 'SAMPLES_ASSISTANT')) {
     $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 
@@ -413,6 +568,7 @@ try {
         'status' { Invoke-Status }
         'test'   { Invoke-Test }
         'docs'   { Invoke-Docs }
+        'evals'  { Invoke-Evals }
         'setup'  { Invoke-Setup }
         'purge'  { Invoke-Purge }
         default  { Show-Usage }
