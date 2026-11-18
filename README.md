@@ -22,9 +22,9 @@ Add Sounding to your images, start the dashboard, and see your containers in one
 
 ![Sounding agents inside your containers send metrics to a shared PostgreSQL database, bringing every host and container into one live dashboard.](docs/product/assets/how-it-works.svg)
 
-All you need is Docker Compose v2 and x86-64 Linux containers (Linux or Docker Desktop).
+All you need is Docker Compose v2 and x86-64 or ARM64 Linux containers (Linux or Docker Desktop).
 Both images are published to the [famda/sounding](https://hub.docker.com/r/famda/sounding) Docker Hub repository:
-`agent-latest` and `dashboard-latest` follow the newest build, and `agent-<commit>` and `dashboard-<commit>` pin one.
+`agent-latest` and `dashboard-latest` follow the newest release, and `agent-1.2.0` and `dashboard-1.2.0` pin one.
 
 ### 1. Add Sounding to your container
 
@@ -136,5 +136,4 @@ or touching other projects.
 With Docker Compose and PowerShell available, run `.\platform.ps1 docs generate` to regenerate the
 screenshots and build the static Next.js documentation site. Node.js and npm run only inside the
 build container.
-Run `.\platform.ps1 docs start` to preview it locally. See
-[the site build instructions](docs/product/site/README.md) for the output directory and publishing details.
+Run `.\platform.ps1 docs start` to preview it locally.

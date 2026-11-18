@@ -7,17 +7,26 @@ FROM alpine:3.22 AS build
 RUN apk add --no-cache bash curl ca-certificates clang build-base linux-headers zlib-dev libstdc++ libcap \
     && curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 11.0.100 --install-dir /usr/share/dotnet
 ENV PATH=/usr/share/dotnet:$PATH DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+        amd64) echo linux-musl-x64 > /rid ;; \
+        arm64) echo linux-musl-arm64 > /rid ;; \
+        *) echo "unsupported architecture: '$TARGETARCH' (amd64 or arm64, built with BuildKit)" >&2; exit 1 ;; \
+    esac
 WORKDIR /src
 COPY Directory.Build.props Directory.Packages.props ./
 COPY src/Sounding.Shared/Sounding.Shared.csproj src/Sounding.Shared/
 COPY src/Sounding.Agent/Sounding.Agent.csproj src/Sounding.Agent/
-RUN dotnet restore src/Sounding.Agent/Sounding.Agent.csproj -r linux-musl-x64
+RUN dotnet restore src/Sounding.Agent/Sounding.Agent.csproj -r "$(cat /rid)"
 COPY src/Sounding.Shared/ src/Sounding.Shared/
 COPY src/Sounding.Agent/ src/Sounding.Agent/
-RUN dotnet publish src/Sounding.Agent/Sounding.Agent.csproj -c Release -r linux-musl-x64 --no-restore -o /opt/sounding/agent \
+# Declared here so a new version doesn't invalidate the restore layer.
+ARG VERSION REVISION
+RUN dotnet publish src/Sounding.Agent/Sounding.Agent.csproj -c Release -r "$(cat /rid)" --no-restore -o /opt/sounding/agent \
+        ${VERSION:+-p:Version=$VERSION} ${REVISION:+-p:SourceRevisionId=$REVISION} \
     && cd /opt/sounding/agent \
     && mv Sounding.Agent sounding-agent.elf && rm -f *.dbg *.pdb \
-    && cp -L /lib/ld-musl-x86_64.so.1 sounding-agent \
+    && cp -L /lib/ld-musl-*.so.1 sounding-agent \
     && cp -L /usr/lib/libssl.so.3 /usr/lib/libcrypto.so.3 . \
     && gcc -O2 -s -Wall -static -o /opt/sounding/net-meter /src/src/Sounding.Agent/Native/netmeter.c \
     && setcap cap_net_raw=ep /opt/sounding/net-meter \

@@ -43,7 +43,7 @@ Check these before you add the agent to your images.
 
 | Requirement | Details |
 |---|---|
-| Processor | **x86-64** (amd64). ARM containers aren't supported yet, including on Apple silicon Macs. |
+| Processor | **x86-64** (amd64) or **ARM64** (arm64), including Apple silicon Macs. Docker picks the matching image automatically. 32-bit ARM isn't supported. |
 | Operating system | **Linux** containers, with **cgroup v2**, the default on current Linux distributions and Docker Desktop. |
 | Base image | Any Linux image: Debian, Ubuntu, Red Hat-based, Alpine, BusyBox, or distroless. The agent brings everything it needs. |
 | Runtime | **Docker Engine** with Docker Compose v2 on Linux, **Docker Desktop**, or **Kubernetes** with containerd. |

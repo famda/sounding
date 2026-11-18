@@ -18,7 +18,7 @@ nodes and pods, see [Sounding on Kubernetes](../concepts/kubernetes.md).
 
 **You need:**
 
-- A cluster with **x86-64** Linux nodes using **cgroup v2**, and `kubectl` connected to it.
+- A cluster with **x86-64** or **ARM64** Linux nodes using **cgroup v2**, and `kubectl` connected to it.
 - PostgreSQL 14 or later: your own, or the one the sample runs, which needs a default StorageClass (step 1).
 - A shell: **bash** with `openssl`, or **PowerShell** (Windows PowerShell 5.1 or PowerShell 7). Where the commands
   differ, choose yours above the commands.
@@ -396,7 +396,7 @@ The sample runs as it is, and already covers the groundwork. A few decisions are
 
 - **Database:** use a managed or replicated PostgreSQL that you back up, instead of the bundled single instance, and
   size its storage for your fleet. See [limits and capacity](../concepts/limits-and-capacity.md).
-- **Image versions:** pin `dashboard-<commit>` and `agent-<commit>` instead of the `-latest` tags, and set
+- **Image versions:** pin a version, such as `dashboard-1.2.0` and `agent-1.2.0`, instead of the `-latest` tags, and set
   `imagePullPolicy: IfNotPresent`, so you choose when to upgrade. See
   [choose an image tag](../operate/upgrade-sounding.md#choose-an-image-tag).
 - **Access:** choose how people reach the dashboard, as in [dashboard access](#dashboard-access), and run the

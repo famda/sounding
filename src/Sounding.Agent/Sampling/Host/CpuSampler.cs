@@ -135,10 +135,73 @@ public sealed class CpuSampler(IOptions<AgentOptions> options)
         var cpuInfoPath = Path.Combine(_procPath, "cpuinfo");
         if (File.Exists(cpuInfoPath))
         {
-            var line = KernelFile.ReadAllLines(cpuInfoPath).FirstOrDefault(l => l.StartsWith("model name", StringComparison.Ordinal));
-            _model = line?[(line.IndexOf(':') + 1)..].Trim();
+            _model = ParseModel(KernelFile.ReadAllLines(cpuInfoPath));
         }
 
         return _model;
+    }
+
+    // arm64 kernels usually have no "model name", only the implementer and part numbers, named here as lscpu does.
+    public static string? ParseModel(string[] cpuInfo)
+    {
+        string? implementer = null, part = null;
+        foreach (var line in cpuInfo)
+        {
+            var colon = line.IndexOf(':');
+            if (colon < 0)
+            {
+                continue;
+            }
+
+            var key = line.AsSpan(0, colon).Trim();
+            if (key.SequenceEqual("model name"))
+            {
+                return line[(colon + 1)..].Trim();
+            }
+
+            if (implementer is null && key.SequenceEqual("CPU implementer"))
+            {
+                implementer = line[(colon + 1)..].Trim();
+            }
+            else if (part is null && key.SequenceEqual("CPU part"))
+            {
+                part = line[(colon + 1)..].Trim();
+            }
+        }
+
+        var vendor = implementer switch
+        {
+            "0x41" => "ARM",
+            "0x42" => "Broadcom",
+            "0x43" => "Cavium",
+            "0x48" => "HiSilicon",
+            "0x4e" => "NVIDIA",
+            "0x51" => "Qualcomm",
+            "0x61" => "Apple",
+            "0xc0" => "Ampere",
+            _ => null,
+        };
+        if (vendor is null)
+        {
+            return null;
+        }
+
+        var core = (implementer, part) switch
+        {
+            ("0x41", "0xd03") => "Cortex-A53",
+            ("0x41", "0xd05") => "Cortex-A55",
+            ("0x41", "0xd08") => "Cortex-A72",
+            ("0x41", "0xd0b") => "Cortex-A76",
+            ("0x41", "0xd0c") => "Neoverse-N1",
+            ("0x41", "0xd40") => "Neoverse-V1",
+            ("0x41", "0xd49") => "Neoverse-N2",
+            ("0x41", "0xd4f") => "Neoverse-V2",
+            ("0x41", "0xd84") => "Neoverse-V3",
+            ("0x41", "0xd8e") => "Neoverse-N3",
+            ("0xc0", "0xac3") => "Ampere-1",
+            ("0xc0", "0xac4") => "Ampere-1a",
+            _ => null,
+        };
+        return core is null ? vendor : $"{vendor} {core}";
     }
 }

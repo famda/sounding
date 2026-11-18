@@ -14,7 +14,9 @@ RUN dotnet restore src/Sounding.Dashboard/Sounding.Dashboard.csproj
 COPY src/Sounding.Shared/ src/Sounding.Shared/
 COPY src/Sounding.Dashboard/ src/Sounding.Dashboard/
 COPY --from=client /client/dist/ src/Sounding.Dashboard/wwwroot/
-RUN dotnet publish src/Sounding.Dashboard/Sounding.Dashboard.csproj -c Release -o /app --no-restore
+ARG VERSION REVISION
+RUN dotnet publish src/Sounding.Dashboard/Sounding.Dashboard.csproj -c Release -o /app --no-restore \
+        ${VERSION:+-p:Version=$VERSION} ${REVISION:+-p:SourceRevisionId=$REVISION}
 
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0
 WORKDIR /app

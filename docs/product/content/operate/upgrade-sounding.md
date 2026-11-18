@@ -3,20 +3,22 @@ title: Upgrade Sounding
 description: Move the dashboard and your agents to a new version of Sounding.
 ---
 
-Sounding's agent and dashboard are built together from the same commit. Run the same build for both.
+Sounding's agent and dashboard are released together with the same version number. Run the same version for both.
 
 ## Choose an image tag
 
 Both images are published to the [`famda/sounding`](https://hub.docker.com/r/famda/sounding) repository on Docker Hub,
-with a tag prefix for each part. Every build is tagged with its short commit hash, for example `1a2b3c4`:
+with a tag prefix for each part:
 
 | Agent tag | Dashboard tag | Follows |
 |---|---|---|
-| `famda/sounding:agent-latest` | `famda/sounding:dashboard-latest` | The newest build. |
-| `famda/sounding:agent-1a2b3c4` | `famda/sounding:dashboard-1a2b3c4` | Exactly this build. |
+| `famda/sounding:agent-latest` | `famda/sounding:dashboard-latest` | The newest release. Pre-releases don't move it. |
+| `famda/sounding:agent-1.2.0` | `famda/sounding:dashboard-1.2.0` | Exactly this release. Pre-releases look like `1.3.0-rc.1` or `1.3.0-preview.1`. |
+| `famda/sounding:agent-sha-1a2b3c4` | `famda/sounding:dashboard-sha-1a2b3c4` | One build of the source, by its short commit hash, including builds between releases. |
 
-The setup guides and demos use the `latest` tags. To choose when to upgrade, use the commit tags, with the same commit
-for the agent and the dashboard.
+The setup guides and demos use the `latest` tags. To choose when to upgrade, use the version tags, with the same
+version for the agent and the dashboard. The [releases page](https://github.com/famda/sounding/releases) lists each
+version and what changed.
 
 ## Upgrade
 
@@ -25,7 +27,7 @@ history: the current migration from older JSON-backed sample tables deletes the 
 
 ### With Docker Compose
 
-1. **Update the dashboard.** Change its image tag if you pin a commit, then pull and recreate it:
+1. **Update the dashboard.** Change its image tag if you pin a version, then pull and recreate it:
 
    ```sh
    docker compose pull dashboard
@@ -44,10 +46,10 @@ history: the current migration from older JSON-backed sample tables deletes the 
 
 ### On Kubernetes
 
-The sample's manifests use the `-latest` tags with `imagePullPolicy: Always`, so a restart pulls the newest build. To
-choose when to upgrade, set the commit tags in `sounding.yaml` and `node-agent.yaml` instead.
+The sample's manifests use the `-latest` tags with `imagePullPolicy: Always`, so a restart pulls the newest release. To
+choose when to upgrade, set the version tags in `sounding.yaml` and `node-agent.yaml` instead.
 
-1. **Update the dashboard.** With a commit tag, change its `image` and run `kubectl apply -f sounding.yaml`. With
+1. **Update the dashboard.** With a version tag, change its `image` and run `kubectl apply -f sounding.yaml`. With
    `dashboard-latest`, restart it: `kubectl -n sounding rollout restart deployment/dashboard`.
 2. **Update the node agent**, if you run it, the same way: `kubectl apply -f node-agent.yaml`, or
    `kubectl -n sounding-node rollout restart daemonset/node-agent`.
@@ -60,7 +62,7 @@ Each replaced pod is a new container in the dashboard; see
 [Sounding on Kubernetes](../concepts/kubernetes.md#hosts-and-containers).
 
 The database schema is updated automatically the first time the new version connects. To inspect history removed by
-the migration, restore a backup to a separate database and use the commit tags of the Sounding build you ran before. Connecting the
+the migration, restore a backup to a separate database and use the version tags of the Sounding release you ran before. Connecting the
 new version to that restored database applies the migration again.
 
 After upgrading, open a workload you just updated. Select **1m** on its **CPU** page and check that new samples

@@ -53,7 +53,7 @@ No. Keep it private, or put it behind a reverse proxy that signs users in. See
 
 ## Does it work with Kubernetes, Podman, or ARM?
 
-Kubernetes, yes. Podman and ARM, not yet. See [supported platforms](../index.md#supported-platforms).
+Kubernetes and ARM64 (including Apple silicon Macs), yes. Podman, not yet. See [supported platforms](../index.md#supported-platforms).
 
 ## Can I use it with Alpine or distroless images?
 

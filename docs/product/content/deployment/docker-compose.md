@@ -14,7 +14,7 @@ There is no host agent to install, no sidecar to deploy, and no Docker socket to
 **You need:**
 
 - An application that already builds and runs in Docker Compose.
-- Docker Compose v2 and x86-64 Linux containers, on Linux or Docker Desktop. See
+- Docker Compose v2 and x86-64 or ARM64 Linux containers, on Linux or Docker Desktop. See
   [requirements](../get-started/getting-started.md#requirements).
 
 ## 1. Add the agent to your image

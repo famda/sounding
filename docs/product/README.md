@@ -7,7 +7,7 @@ The product documentation is published at **<https://famda.github.io/sounding/>*
 | [content](content/index.md) | The Markdown pages, one per site page. The folder path is the page URL. |
 | [assets](assets/) | Images the pages and the README show. Screenshots are generated and not committed, except `overview.gif`. |
 | [screenshots](screenshots/) | Playwright scenarios that capture the screenshots against a seeded demo database. |
-| [site](site/README.md) | The Next.js static site that renders the pages, and how it is built and published. |
+| [site](site/) | The Next.js static site that renders the pages, and how it is built and published. |
 
 ## Sections
 

@@ -7,7 +7,7 @@ them to a web dashboard. See [product documentation](../product/README.md) for u
 
 | Area | Choice and version |
 | --- | --- |
-| Agent and dashboard | .NET 11 (SDK 11.0.100); Native AOT agent for Linux x64 |
+| Agent and dashboard | .NET 11 (SDK 11.0.100); Native AOT agent for Linux x64 and arm64 |
 | Dashboard API | ASP.NET Core minimal APIs with built-in OpenAPI; Wolverine 6.64 (`WolverineFx`, mediator-only) for queries and commands |
 | Dashboard MCP server | MCP C# SDK 2.4 (`ModelContextProtocol.AspNetCore`), Streamable HTTP, stateless |
 | Dashboard frontend | React 19, Tailwind CSS 4 and Vite |
@@ -126,16 +126,32 @@ The test project name is `sounding-test`, separate from other solutions.
 
 Documentation generation captures documentation screenshots and runs the site build checks: TypeScript compilation,
 static export, and generated route/link/anchor/asset/redirect checks. The site has no unit tests for now.
-Run `.\platform.ps1 docs generate`; see [site instructions](../product/site/README.md) for build-only verification.
+Run `.\platform.ps1 docs generate`; see [site instructions](../product/site/) for build-only verification.
 
 ## Publishing
 
-Both workflows run on every push to `main` and can be started by hand.
+Both workflows run on every push to `main` and can be started by hand; Images also runs when a GitHub release is published.
 
 | Workflow | Publishes |
 | --- | --- |
-| [Images](../../.github/workflows/images.yml) | `famda/sounding:agent-<short sha>` and `famda/sounding:dashboard-<short sha>` to Docker Hub, plus `agent-latest` and `dashboard-latest` from `main` only. Needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets. linux/amd64 only. |
-| [Documentation pages](../../.github/workflows/pages.yml) | The [documentation site](../product/site/README.md#publish) to <https://famda.github.io/sounding/>. Needs the Pages source set to GitHub Actions. |
+| [Images](../../.github/workflows/images.yml) | `famda/sounding:agent-sha-<short sha>` and `famda/sounding:dashboard-sha-<short sha>` to Docker Hub on every run; a release adds `agent-<version>` and `dashboard-<version>`, and moves `agent-latest` and `dashboard-latest` unless it is a pre-release. linux/amd64 and linux/arm64 (arm64 on native `ubuntu-24.04-arm` runners), with SLSA provenance (`mode=max`), an SBOM, and a keyless cosign signature. Needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets. |
+| [Documentation pages](../../.github/workflows/pages.yml) | The [documentation site](../product/site/) to <https://famda.github.io/sounding/>. Needs the Pages source set to GitHub Actions. |
+
+### Releasing a version
+
+The agent and dashboard share one version, taken from the release's Git tag; nothing in the repository holds it.
+Local builds report `0.0.0-dev` ([Directory.Build.props](../../Directory.Build.props)); the image workflow passes the
+version and commit to both Dockerfiles as `VERSION` and `REVISION`, so the binaries' informational version reads
+`1.2.0+<commit>`.
+
+1. On GitHub, open **Releases** > **Draft a new release**, type a new tag such as `v1.2.0`, and keep **Target** on `main`.
+2. For a pre-release, use a suffixed tag such as `v1.3.0-rc.1` or `v1.3.0-preview.1`. Select **Pre-release** too;
+   either one keeps `latest` where it is.
+3. Write or generate the release notes and select **Publish release**. The Images workflow builds that commit and
+   pushes the version tags. A tag that isn't `v` followed by a semantic version fails the workflow before anything is pushed.
+
+Signatures can be checked with
+`cosign verify famda/sounding:agent-1.2.0 --certificate-identity-regexp '^https://github.com/famda/sounding/' --certificate-oidc-issuer https://token.actions.githubusercontent.com`.
 
 ## Security model
 
@@ -148,4 +164,4 @@ untracked `.env` file.
 ## Documents
 
 - [Dashboard API and MCP server](api.md)
-- [Documentation generation, preview and publishing](../product/site/README.md)
+- [Documentation generation, preview and publishing](../product/site/)

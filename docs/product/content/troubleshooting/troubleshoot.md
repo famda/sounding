@@ -33,7 +33,7 @@ Work through these in order:
    `sounding-agent` secret in its namespace. With the bundled PostgreSQL, the namespace also needs the
    `sounding-agents=true` label, or the database's NetworkPolicy turns the agent away. See
    [copy the secret](../deployment/kubernetes.md#copy-the-secret).
-6. **The platform isn't supported.** Sounding needs x86-64 Linux containers with cgroup v2. See
+6. **The platform isn't supported.** Sounding needs x86-64 or ARM64 Linux containers with cgroup v2. See
    [requirements](../get-started/getting-started.md#requirements).
 
 ## A container shows Not reporting

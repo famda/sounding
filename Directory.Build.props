@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Local builds; published images get the release's version from the image workflow. -->
+    <Version>0.0.0-dev</Version>
   </PropertyGroup>
 
 </Project>

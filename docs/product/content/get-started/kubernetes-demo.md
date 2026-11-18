@@ -10,8 +10,8 @@ servers and roll out new clients to see how replicas and their history appear in
 
 **You need:**
 
-- **Docker Desktop** on an **x86-64** computer, with **Kubernetes** turned on (step 1). Sounding's agent doesn't run
-  on ARM, including Apple silicon Macs.
+- **Docker Desktop** on an **x86-64** or **ARM64** computer (including Apple silicon Macs), with **Kubernetes** turned
+  on (step 1).
 - `kubectl`, which Docker Desktop installs.
 - A shell: **bash** with `openssl` and `unzip` (macOS, Linux), or **PowerShell** (Windows PowerShell 5.1 or
   PowerShell 7). Where the commands differ, choose yours above the commands.

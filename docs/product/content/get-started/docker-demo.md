@@ -12,7 +12,7 @@ change. The example includes its own dashboard and PostgreSQL database; no appli
 Ready to monitor your own application instead? Go straight to
 [add Sounding to your application](../deployment/docker-compose.md).
 
-**You need:** Docker Compose 2.17 or later and x86-64 Linux containers, on Linux or Docker Desktop.
+**You need:** Docker Compose 2.17 or later and x86-64 or ARM64 Linux containers, on Linux or Docker Desktop.
 
 > [!NOTE]
 > Already using port 8080? Change the dashboard's port mapping below to `127.0.0.1:8081:8080` and open
