@@ -16,6 +16,9 @@ of offering a generic troubleshooting checklist. You ask the question; it follow
 The dashboard includes an [MCP](https://modelcontextprotocol.io) server: there is no extra Sounding service to
 install. Use an assistant that supports HTTP MCP connections and can reach the dashboard.
 
+A hosted model’s provider receives the monitoring data your assistant reads. To process that data on your own
+machine, choose the local model setup below.
+
 **Choose your starting point:**
 
 - **Already use an assistant?** [Connect it below](#add-sounding-to-your-assistant).
@@ -37,6 +40,8 @@ Every assistant needs the same two settings:
 
 Use an address the assistant can reach: `localhost` means the machine running the connection, not necessarily
 the machine running Sounding.
+
+<!-- tabs -->
 
 ### Claude Code
 
@@ -96,6 +101,8 @@ copilot mcp add --transport http sounding http://localhost:8080/mcp
 
 See [set up a local model](set-up-a-local-model.md).
 
+<!-- /tabs -->
+
 ## Ask a question
 
 Start with "Is anything wrong right now?" and check that your assistant calls a Sounding tool, such as `diagnose`,
@@ -126,9 +133,6 @@ out an earlier incident, and a container that stopped reporting is not necessari
 
 Sounding's tools only read: none of them changes your containers. An assistant that can also run commands on your
 network can still reach the dashboard's [REST API](../reference/api.md), which can start a packet capture.
-
-The assistant receives the data it reads. With a hosted model, that data goes to its provider; choose an assistant
-and model appropriate for your monitoring data, or use the [local setup](set-up-a-local-model.md).
 
 ## Next steps
 

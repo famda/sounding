@@ -10,9 +10,8 @@ container, it's the container's **limit**: what Docker allows it to use.
 
 ## Limits aren't reservations
 
-A container's CPU or memory limit caps what it can use; it doesn't set anything aside for it. You can give containers
-limits that add up to more than the machine has. That's common and often fine, but then the containers can't all reach
-their limits at the same time.
+A container's CPU or memory limit caps what it can use; it doesn't set anything aside for it. For example, two containers on a four-core host can each have a three-core limit.
+Either can use three cores on its own. When both are busy, they share the four cores available on the host.
 
 The host overview shows this as **Limits**: the containers' limits added up, next to what the host has.
 

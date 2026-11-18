@@ -1,9 +1,10 @@
 ---
-title: Monitor more containers and hosts
+title: Monitor containers and hosts
 description: Grow from one monitored container to more services and machines, all reporting to the same dashboard.
 ---
 
-Your first container is reporting. Now bring in the worker beside it, another Compose project, or a second machine.
+Adding Sounding to another container takes the same two lines in its `Dockerfile` and the same connection string.
+Once your first container reports, bring in the worker beside it, another Compose project, or a second machine.
 You keep the same dashboard: every monitored container reports to the same PostgreSQL database.
 
 Choose the next step that matches your setup:
@@ -12,23 +13,24 @@ Choose the next step that matches your setup:
 - [Connect a separate Compose project](#use-a-separate-compose-project) on the same machine.
 - [Add another machine](#add-another-machine).
 
-Sounding doesn't add itself to other containers: each container you want to monitor needs the agent in its image.
+On Kubernetes, add each workload as in [set up Sounding on Kubernetes](../deployment/kubernetes.md#2-add-the-agent-to-your-workload);
+every node of the cluster can report to the same dashboard.
 
 ## Add another application
 
 1. Add the two Sounding lines to the service's `Dockerfile`, as in
-   [add Sounding to your application](getting-started.md#1-add-the-agent-to-your-image).
-2. Set `SOUNDING_CONNECTION_STRING` to the **same database** as the dashboard. Use the same
-   `SOUNDING_HOST_DISPLAY_NAME` as the other containers on this machine.
+   [add Sounding to your application](../deployment/docker-compose.md#1-add-the-agent-to-your-image).
+2. Add `<<: *sounding` to the service's `environment`, so it reports to the **same database** as the dashboard. Use
+   the same `SOUNDING_HOST_DISPLAY_NAME` as the other containers on this machine.
 3. Rebuild and deploy the service as usual.
-4. Open that host in the dashboard and check that the new container has live figures.
+4. Open the host in the dashboard. Find both services and check that the new container has live figures.
 
 ### Use a separate Compose project
 
 The `db` service name only works for containers on the same Docker network. For a second Compose project on the
 same machine, connect its monitored service to the database's network.
 
-For the stack from [getting started](getting-started.md), add this at the top level of the Compose file that runs
+For the stack from [the Docker Compose guide](../deployment/docker-compose.md), add this at the top level of the Compose file that runs
 `db` to give its default network a shared name:
 
 ```yaml title="Dashboard compose.yaml"

@@ -15,7 +15,10 @@ export function routeHref(pathname: string) {
 export interface NavLink {
   title: string
   href: string
+  // Off the main reading path: the footer leads from `previous` to `next` instead of the neighbouring pages.
   optional?: boolean
+  previous?: string
+  next?: string
 }
 
 export const navigation: Array<{ title: string; links: Array<NavLink> }> = [
@@ -23,18 +26,24 @@ export const navigation: Array<{ title: string; links: Array<NavLink> }> = [
     title: 'Get started',
     links: [
       { title: 'What is Sounding?', href: '/' },
+      { title: 'Getting started', href: '/get-started/getting-started' },
       {
-        title: 'Getting started',
-        href: '/get-started/getting-started',
+        title: 'Monitor containers and hosts',
+        href: '/get-started/monitor-containers-and-hosts',
       },
       {
-        title: 'Monitor more containers and hosts',
-        href: '/get-started/monitor-more-containers',
-      },
-      {
-        title: 'Try a standalone demo',
-        href: '/get-started/full-demo',
+        title: 'Try the Docker demo',
+        href: '/get-started/docker-demo',
         optional: true,
+        previous: '/get-started/getting-started',
+        next: '/deployment/docker-compose',
+      },
+      {
+        title: 'Try the Kubernetes demo',
+        href: '/get-started/kubernetes-demo',
+        optional: true,
+        previous: '/get-started/getting-started',
+        next: '/deployment/kubernetes',
       },
     ],
   },
@@ -74,23 +83,18 @@ export const navigation: Array<{ title: string; links: Array<NavLink> }> = [
         title: 'What Sounding provides',
         href: '/ai-assistants/what-sounding-provides',
       },
-      { title: 'Set up a local model', href: '/ai-assistants/set-up-a-local-model' },
       {
         title: 'Tutorial: find a memory leak',
         href: '/ai-assistants/tutorial-find-a-memory-leak',
       },
+      { title: 'Set up a local model', href: '/ai-assistants/set-up-a-local-model' },
     ],
   },
   {
-    title: 'Concepts',
+    title: 'Deployment',
     links: [
-      { title: 'How Sounding works', href: '/concepts/how-sounding-works' },
-      {
-        title: 'Hosts and containers',
-        href: '/concepts/hosts-and-containers',
-      },
-      { title: 'Samples and history', href: '/concepts/samples-and-history' },
-      { title: 'Limits and capacity', href: '/concepts/limits-and-capacity' },
+      { title: 'Docker Compose', href: '/deployment/docker-compose' },
+      { title: 'Kubernetes', href: '/deployment/kubernetes' },
     ],
   },
   {
@@ -111,13 +115,25 @@ export const navigation: Array<{ title: string; links: Array<NavLink> }> = [
     ],
   },
   {
+    title: 'Concepts',
+    links: [
+      { title: 'How Sounding works', href: '/concepts/how-sounding-works' },
+      { title: 'Sounding on Kubernetes', href: '/concepts/kubernetes' },
+      {
+        title: 'Hosts and containers',
+        href: '/concepts/hosts-and-containers',
+      },
+      { title: 'Samples and history', href: '/concepts/samples-and-history' },
+      { title: 'Limits and capacity', href: '/concepts/limits-and-capacity' },
+    ],
+  },
+  {
     title: 'Reference',
     links: [
       { title: 'Configuration', href: '/reference/configuration' },
       { title: 'REST API', href: '/reference/api' },
       { title: 'Events', href: '/reference/events' },
       { title: 'Metrics', href: '/reference/metrics' },
-      { title: 'Requirements', href: '/reference/requirements' },
     ],
   },
   {

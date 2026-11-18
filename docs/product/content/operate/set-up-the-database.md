@@ -3,7 +3,8 @@ title: Set up the database
 description: Prepare the PostgreSQL database that Sounding's agents and dashboard share, and connect to it safely.
 ---
 
-Sounding's agents and dashboard share one PostgreSQL database. It can run anywhere your containers can reach: on the
+Use this guide to connect an existing PostgreSQL database or estimate storage for your deployment.
+Sounding’s agents and dashboard share one database. It can run anywhere your containers can reach: on the
 same machine, on another server, or in the cloud.
 
 ## Create the database
@@ -25,7 +26,7 @@ A dedicated database keeps Sounding's tables apart from your application's data,
 ## Connect to it
 
 Point every agent and the dashboard to the same PostgreSQL database using the `SOUNDING_CONNECTION_STRING` setting.
-Their connection strings may differ in options: for example, the dashboard can use `SSL Mode=Require`.
+Their connection strings may differ in options, such as the user name.
 
 ```text
 Host=db.example.com;Port=5432;Database=sounding;Username=sounding;Password=choose-a-password
@@ -37,24 +38,33 @@ contains `;` or `=`, put it in single quotes: `Password='pa;ss'`.
 
 > [!IMPORTANT]
 > Inside a container, `localhost` is the container itself, not your machine. Use a host name that every container can
-> reach: the database's service name in the same Compose file, or its address on your network.
+> reach: the database's service name in the same Compose file, its Service name on Kubernetes, or its address on your
+> network.
 
 Keep connection strings out of your source code: put them in an `.env` file excluded from version control, or in your
 platform's secret store.
 
 ## Protect the connection
 
-> [!WARNING]
-> The agent connects to PostgreSQL **without encryption**, and can't connect to a server that requires it. Don't let
-> that traffic cross a network you don't trust.
+Sounding encrypts the connection whenever the database supports it. The `SSL Mode` setting in each connection string
+decides what it accepts:
 
-If the database is on another machine, use one of these:
+| `SSL Mode` | Encrypted | Server checked | Use |
+|---|---|---|---|
+| `Prefer` (default) | When the server supports it | No | A database on a network you trust. |
+| `Require` | Always | No | Refuses unencrypted connections, but doesn't stop a machine pretending to be your server. |
+| `VerifyFull` | Always | Yes: its certificate must be signed by a CA you trust and name the host you connect to | A database reached over a network you don't control, such as a managed service. |
 
-- **A private network** between your containers and the database, such as a Docker network, a private cloud network,
-  or a VPN.
-- **A tunnel or proxy** next to your containers that adds encryption on the way to the database.
+For `VerifyFull`, the agent needs the certificate of the CA that signed the server's certificate. It looks in the CA
+store of the image it runs in, which small images such as `busybox` don't have. To be sure, give the CA certificate to
+every container that has the agent, for example from a mounted file, and name it in the connection string:
 
-The dashboard can use an encrypted connection: add `SSL Mode=Require` to its connection string.
+```text
+Host=db.example.com;Database=sounding;Username=sounding;Password=choose-a-password;SSL Mode=VerifyFull;Root Certificate=/etc/sounding/db-ca.pem
+```
+
+Your database provider publishes its CA certificate. Check that each container connects after the change: one that
+can't verify the server stops reporting, and its messages say why.
 
 ## Connection poolers
 

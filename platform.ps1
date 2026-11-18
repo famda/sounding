@@ -127,7 +127,7 @@ function Test-NvidiaGpu {
 }
 
 function Get-SamplesCompose {
-    $compose = @('compose', '--env-file', $EnvFile, '-p', $SamplesProject, '-f', 'samples/docker-compose.yml')
+    $compose = @('compose', '--env-file', $EnvFile, '-p', $SamplesProject, '-f', 'samples/compose/docker-compose.yml')
     if ($script:HasGpu) { $compose += @('--profile', 'gpu') }
     # The simulated users ask the assistant only when its profile runs.
     $env:SAMPLES_ASSISTANT = if ($script:HasGpu) { '1' } else { '0' }
@@ -244,7 +244,8 @@ function Invoke-Docs {
             $failure = $null
             try {
                 Write-Step 'Capturing documentation screenshots'
-                Invoke-Docker ($compose + @('up', '--build', '--abort-on-container-exit', '--exit-code-from', 'capture'))
+                # The attached shortcut menu keeps reading console input after up exits, stalling until the next input event.
+                Invoke-Docker ($compose + @('up', '--build', '--menu=false', '--abort-on-container-exit', '--exit-code-from', 'capture'))
             }
             catch { $failure = $_ }
             finally {

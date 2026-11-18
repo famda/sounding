@@ -52,7 +52,7 @@ services:
       - /var/lib/docker:/host/disk:ro
 ```
 
-Any folder on the disk works: Sounding measures the disk it's on, not the folder.
+Open the host’s **Disk** page to check free space on the mounted disk. Any folder on that disk works.
 
 To show several disks by name, list them with `SOUNDING_DISKS`:
 
@@ -69,11 +69,12 @@ services:
       - /srv/archive:/host/archive:ro
 ```
 
-When you list disks this way, they replace the `/host/disk` mount for that container.
+On the host’s **Disk** page, look for **Application data** and **Archive**. The configured paths replace
+the `/host/disk` mount for that container.
 
 ## GPUs
 
-Give the container access to the host's NVIDIA GPUs. See [monitor NVIDIA GPUs](../dashboard/monitor-gpus.md).
+Give one monitored container access to the NVIDIA GPUs, then open the host’s **GPU** page to check which cards appear. See [monitor NVIDIA GPUs](../dashboard/monitor-gpus.md).
 
 ## On Docker Desktop
 

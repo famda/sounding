@@ -8,7 +8,7 @@ container you monitor, and the dashboard's on the dashboard.
 
 > [!NOTE]
 > Docker applies changed environment variables only when it recreates the container: run `docker compose up -d` after
-> changing them.
+> changing them. On Kubernetes, restart the pods: `kubectl rollout restart deployment <name>`.
 
 Jump to [agent connection](#connection), [names and identity](#names-and-identity),
 [sampling and history](#sampling-and-history), or [dashboard settings](#dashboard).
@@ -25,10 +25,12 @@ Jump to [agent connection](#connection), [names and identity](#names-and-identit
 
 | Setting | Default | Description |
 |---|---|---|
-| `SOUNDING_HOST_DISPLAY_NAME` | The start of the host's ID | The host's name in the dashboard. Use the same value on every container of a machine. |
-| `SOUNDING_HOST_ID` | The machine's boot ID | The host's identity. The default changes when the machine restarts; set a fixed value, the same on every container of a machine and different on each machine, to keep one host across restarts. |
-| `SOUNDING_DISPLAY_NAME` | The Docker container name, or its ID | The container's name in the dashboard. |
-| `SOUNDING_CONTAINER_ID` | The container's hostname, normally its short Docker ID | The container's identity. Must be unique across all monitored containers, including containers on different hosts. Set this explicitly if you reuse a custom hostname. |
+| `SOUNDING_HOST_DISPLAY_NAME` | `SOUNDING_HOST_ID` if set, else the start of the host's ID | The host's name in the dashboard. Use the same value on every container of a machine. |
+| `SOUNDING_HOST_ID` | The machine's boot ID | The host's identity. The default changes when the machine restarts; set a fixed value, the same on every container of a machine and different on each machine, to keep one host across restarts. On Kubernetes, use the node's name. |
+| `SOUNDING_DISPLAY_NAME` | The Docker container name, or its ID. On Kubernetes, `namespace/workload`. | The container's name in the dashboard. |
+| `SOUNDING_CONTAINER_ID` | The container's hostname, normally its short Docker ID. On Kubernetes, `<pod UID>/<container>`. | The container's identity. Must be unique across all monitored containers, including containers on different hosts. Set this explicitly if you reuse a custom hostname. When set, it's used instead of the Kubernetes settings below. |
+| `SOUNDING_POD_NAMESPACE`, `SOUNDING_POD_NAME`, `SOUNDING_POD_UID` | Read from the pod's files, with an `identity` warning event | Kubernetes: the pod's namespace, name, and UID, from the Downward API fields `metadata.namespace`, `metadata.name`, and `metadata.uid`. The UID is part of the container's identity; the namespace and pod name make up its name. |
+| `SOUNDING_POD_CONTAINER` | Read from the pod's files, with an `identity` warning event | Kubernetes: the container's name in the pod spec. Part of the container's identity. |
 
 See [hosts, containers, and the fleet](../concepts/hosts-and-containers.md#identity).
 
@@ -39,10 +41,14 @@ See [hosts, containers, and the fleet](../concepts/hosts-and-containers.md#ident
 | `SOUNDING_INTERVAL_MILLISECONDS` | `1000` | How often the container is measured, in milliseconds. The minimum is `250`. Measuring less often reduces the load on the database. |
 | `SOUNDING_RETENTION_MINUTES` | `1440` | The history retention target in minutes; values below `1` use `1`. Use the same value on every container. Cleanup requires running host-sampling agents; see [history](../concepts/samples-and-history.md#history). The dashboard shows at most 24 hours, whatever you keep. |
 | `SOUNDING_SAMPLE_HOST` | `true` | Whether this container may report its host's figures. Set it to `false` on short-lived containers, such as scheduled jobs, so that a long-running container reports the host. At least one container per host must keep it `true`. |
+| `SOUNDING_SAMPLE_NETWORK` | `true` | Whether this container reports its network. In a Kubernetes pod with several monitored containers, set it to `false` on all but one. |
+| `SOUNDING_CLUSTER_NETWORKS` | *None* | Kubernetes: the cluster's pod and Service ranges, such as `10.244.0.0/16,10.96.0.0/16`. Calls to addresses in these ranges are matched to the pod that owns them on any node, and never counted as internet traffic. See [set the cluster's ranges](../deployment/kubernetes.md#set-the-clusters-ranges). |
+| `SOUNDING_CLUSTER_DOMAIN` | `cluster.local` | Kubernetes: the cluster's DNS domain, used to name the Services containers call, as `<service>.<namespace>.svc`. |
 
 > [!TIP]
 > If you measure less often than every 10 seconds, set the dashboard's `SOUNDING_STALE_AFTER_SECONDS` higher than the
-> sampling interval in seconds. For example, a `15000` ms interval needs a threshold above 15 seconds.
+> sampling interval in seconds. For example, with `SOUNDING_INTERVAL_MILLISECONDS=15000` (15 seconds), set
+> `SOUNDING_STALE_AFTER_SECONDS=20` so the next sample can arrive before the dashboard marks the container stale.
 
 ### Host access
 
@@ -52,7 +58,7 @@ These settings work with the mounts described in
 | Setting | Default | Description |
 |---|---|---|
 | `SOUNDING_DISKS__0__NAME`, `SOUNDING_DISKS__0__PATH` | *None* | A disk to show by name, and a path on it inside the container. Use `__1__`, `__2__`, and so on for more disks. They replace the `/host/disk` mount for this container. |
-| `SOUNDING_NETWORK_EXCLUDE_PREFIXES` | `lo,veth,docker,br-,services,virbr,cni,flannel,cali,cilium,tunl,vxlan,kube,weave,lxc,dummy` | Host network interfaces left out of the host's traffic, by the start of their name, separated by commas. Setting it replaces the whole list. |
+| `SOUNDING_NETWORK_EXCLUDE_PREFIXES` | `lo`, `veth`, `docker`, `br-`, `services`, `virbr`, `cni`, `flannel`, `cali`, `cilium`, `tunl`, `vxlan`, `kube`, `weave`, `lxc`, `dummy` | Host network interfaces left out of the host's traffic, by the start of their name. Set it as one comma-separated value, such as `lo,veth,docker`; setting it replaces the whole list. |
 | `SOUNDING_HOST_PROC_PATH` | `/host/proc` | Where the host's `/proc` is mounted. |
 | `SOUNDING_HOST_SYS_PATH` | `/host/sys` | Where the host's `/sys` is mounted. |
 | `SOUNDING_HOST_DISK_PATH` | `/host/disk` | Where a folder of the host's disk is mounted. |
@@ -81,7 +87,7 @@ Change these only if your environment puts these resources elsewhere.
 
 | Setting | Default | Description |
 |---|---|---|
-| `SOUNDING_CONNECTION_STRING` | *Required* | The PostgreSQL connection string, to the same database as the agents. The dashboard can use an encrypted connection: add `SSL Mode=Require`. |
+| `SOUNDING_CONNECTION_STRING` | *Required* | The PostgreSQL connection string, to the same database as the agents. |
 
 ### What the dashboard shows
 

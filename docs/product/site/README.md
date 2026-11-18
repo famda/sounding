@@ -3,6 +3,20 @@
 A Next.js 16 static export of the [product documentation](../README.md), published to GitHub Pages at
 <https://famda.github.io/sounding/>. Node.js and npm run only inside Docker.
 
+The site is based on the Tailwind Plus Syntax template (Next.js, Markdoc, FlexSearch) and is kept deliberately rather
+than moved to a docs framework such as Astro Starlight: the layout, design and components are owned here, and the
+[content](../content/) stays plain GitHub-readable Markdown that the build transforms. Custom Markdoc tags are
+`callout`, `download`, `shell` and `tabs`/`tab` ([tags.js](src/markdoc/tags.js)); prefer a GitHub-compatible Markdown
+form where one exists, since a tag renders as raw text on GitHub. Alternative instructions for the same step (one per
+tool or platform) become tabs when wrapped in `<!-- tabs -->` and `<!-- /tabs -->`: each heading of the first
+heading's level inside starts a tab named after it ([transform-document.mjs](scripts/transform-document.mjs)). GitHub
+hides the comments, so the source still reads as ordinary sections there. A bulleted list whose every item opens with a bold label ending in
+`.`, `?`, `:` or `!` (`- **Label:** text`) renders as labelled entries, each label above its description (capitalized when it starts with plain text)
+([lead-list.mjs](src/markdoc/lead-list.mjs)); other lists keep their bullets. Links to `http(s)` addresses outside
+`DOCS_SITE_ORIGIN` open in a new tab, with a ↗ marker and a screen-reader note ([nodes.js](src/markdoc/nodes.js)).
+Code blocks highlight whole-line `#` comments in shell, PowerShell, Dockerfile and `.env` blocks, which Prism's bundled
+grammars don't cover ([Fence.tsx](src/components/Fence.tsx)).
+
 ## Generate
 
 From the repository root:
@@ -12,8 +26,16 @@ From the repository root:
 ```
 
 This captures fresh screenshots into [assets](../assets/) (see [screenshots](../screenshots/)), then builds the site.
-The build copies [content](../content/) and [assets](../assets/) into the app, runs the Markdown transformation tests,
-exports the static site, and verifies every generated page, social preview, local link, anchor and asset. The output is written to
+The build copies [content](../content/) and [assets](../assets/) into the app,
+exports the static site, and verifies every generated page, social preview, local link, anchor and asset. It also
+zips `samples/kubernetes` into `downloads/sounding-kubernetes.zip` ([prepare.mjs](scripts/prepare.mjs)), which pages
+offer with the `{% download %}` tag. Commands that differ between shells go in a `{% shell %}` block: one fence per shell
+(`sh`, `powershell`), shown as toggle buttons in the block's header; the reader's choice applies to every block, is kept in
+`localStorage`, and PowerShell is preselected on
+Windows. A page moved after publication keeps its old URL as a redirect page: add the old and new route to `redirects`
+in [prepare.mjs](scripts/prepare.mjs), which the verification also checks. Sidebar groups and order are explicit in
+[navigation.ts](src/lib/navigation.ts); an `optional` page names its own `previous` and `next` footer links. The output is
+written to
 `docs/product/site/dist` (not committed).
 
 To rebuild the site from the screenshots already in `assets`, without capturing them again:

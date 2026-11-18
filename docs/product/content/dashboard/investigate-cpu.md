@@ -25,8 +25,6 @@ slowdown, try a higher limit or fewer concurrent threads, then compare the resul
 > period, commonly 100 ms but configurable, and a program that works in short bursts on several threads can use up its
 > share quickly.
 
-To reduce throttling, raise the container's CPU limit or make the program use fewer threads at once.
-
 ## 3. Check for competition
 
 Look at **CPU pressure**: the share of time work was ready to run but waiting for a processor. A few percent, steadily,

@@ -22,7 +22,8 @@ them to a web dashboard. See [product documentation](../product/README.md) for u
 | Compose file | Services | Local URL |
 | --- | --- | --- |
 | [Solution](../../docker-compose.yml) | `db`, `dashboard`; `mcp-inspector`, `chat`, `chat-model` and `chat-model-pull` in the `tools` profile | Dashboard <http://localhost:8080> (REST `/api/v1`, OpenAPI `/openapi/v1.json`, MCP `/mcp`); Inspector <http://localhost:6274>; Chat <http://localhost:3000> |
-| [Samples](../../samples/docker-compose.yml) | A simulated shop platform, every container agent-wrapped (see [below](#samples)) | Dashboard above; shop at <http://localhost:8088> |
+| [Samples](../../samples/compose/docker-compose.yml) | A simulated shop platform, every container agent-wrapped (see [below](#samples)) | Dashboard above; shop at <http://localhost:8088> |
+| [Kubernetes sample](../../samples/kubernetes/) (manifests, not Compose) | Sounding and a two-service demo on a cluster (see [Kubernetes sample](#kubernetes-sample)) | `kubectl port-forward` |
 | [Screenshot capture](../product/screenshots/compose.yaml) | Ephemeral `db`, `dashboard`, `capture` | Internal network only |
 | [Documentation site](../product/site/compose.yaml) | One-shot `build`; background `preview` | <http://localhost:4321/sounding/> |
 
@@ -62,11 +63,36 @@ flowchart LR
 | `shop-db` | PostgreSQL: decoded queries, disk use in the `shop-db` volume. |
 | `assistant-api`, `ollama` | `gpu` profile: GPU pages, long requests, an internet destination (model pull). Ollama's context is 4096 tokens so the model fits its 8 GiB limit. |
 
-- The three APIs run one Python image ([samples/api](../../samples/api/api.py)). Proxy and UI configuration lives in
-  [samples/platform](../../samples/platform/). Every other sample is built from
-  [samples/Dockerfile](../../samples/Dockerfile), which copies the agent into the named base image.
-- Compose does not recreate a container when only a `configs` file changes: after editing `samples/platform`, use
+- The three APIs run one Python image ([samples/compose/api](../../samples/compose/api/api.py)). Proxy and UI configuration lives in
+  [samples/compose/platform](../../samples/compose/platform/). Every other sample is built from
+  [samples/compose/Dockerfile](../../samples/compose/Dockerfile), which copies the agent into the named base image.
+- Compose does not recreate a container when only a `configs` file changes: after editing `samples/compose/platform`, use
   `up -d --force-recreate proxy ui`.
+
+### Kubernetes sample
+
+Plain manifests in [samples/kubernetes](../../samples/kubernetes/), applied with `kubectl apply -f samples/kubernetes/`
+after creating the `sounding-db` secret and a `sounding-agent` secret in each namespace. The procedure is the product
+[Kubernetes demo](../product/content/get-started/kubernetes-demo.md); the guide for a reader's own workloads is
+[Set up Sounding on Kubernetes](../product/content/deployment/kubernetes.md). The documentation site publishes the
+folder as `downloads/sounding-kubernetes.zip`, so neither needs a clone.
+
+| File | Contents |
+| --- | --- |
+| [sounding.yaml](../../samples/kubernetes/sounding.yaml) | `sounding` namespace enforcing the restricted Pod Security Standard (every pod non-root, read-only root filesystem, all capabilities dropped, no service-account token). PostgreSQL StatefulSet (user 70, 5 GiB claim, needs a default StorageClass) with a NetworkPolicy admitting only the dashboard and namespaces labelled `sounding-agents=true`. Dashboard (`dashboard-latest`, `imagePullPolicy: Always`): two replicas spread across nodes with a PodDisruptionBudget, `/readyz` and `/healthz` probes, requests and memory limits, and a NetworkPolicy that admits no pod traffic where the network plugin enforces it (`port-forward` still works). |
+| [node-agent.yaml](../../samples/kubernetes/node-agent.yaml) | Optional. `sounding-node` namespace (`pod-security.kubernetes.io/enforce: privileged`, labelled `sounding-agents=true`) and the `node-agent` DaemonSet (root, `SYS_PTRACE`, node `/proc`, `/sys` and `/` read-only). Its own namespace keeps privileged admission away from Sounding's and the application's namespaces. |
+| [demo.yaml](../../samples/kubernetes/demo.yaml) | `demo` namespace (labelled `sounding-agents=true`): `web` (nginx, Service) and `client` (busybox calling `http://web/` every 2 s), 2 replicas each, spread one per node with a control-plane toleration and a topology spread constraint, images built from [web](../../samples/kubernetes/web/Dockerfile) and [client](../../samples/kubernetes/client/Dockerfile) with the agent inside. A `sounding-agent` ConfigMap sets `SOUNDING_SAMPLE_HOST=false` and kind's ranges in `SOUNDING_CLUSTER_NETWORKS`. Docker Desktop's kind nodes don't see local images: the demo imports them with `ctr -n k8s.io images import` on each node. |
+| [gpu/](../../samples/kubernetes/gpu/node-agent.yaml) | Docker Desktop's NVIDIA GPU: `install-gpu-driver.ps1` copies the WSL driver files Docker injects with `--gpus` to `/opt/wsl-gpu` on each node; `node-agent.yaml` replaces the node agent in `sounding-node` with a privileged one that mounts them and `/dev/dxg` (no device plugin supports WSL). |
+
+Every monitored container in these manifests sets `SOUNDING_HOST_ID` (`spec.nodeName`), `SOUNDING_POD_NAMESPACE`,
+`SOUNDING_POD_NAME`, `SOUNDING_POD_UID` (Downward API) and `SOUNDING_POD_CONTAINER`; see
+[identity](architecture.md#identity). Kubernetes kills every process of a container on OOM (`memory.oom.group=1`), so
+the agent can only report an unexplained restart, with its last memory sample as evidence; see
+[the agent's unreported stops](architecture.md#identity).
+
+To run the sample against locally built images, import `famda/sounding:agent-latest` and `dashboard-latest` onto the
+nodes as above and apply copies of the manifests with `imagePullPolicy: IfNotPresent`: `Always` would pull the
+published images instead.
 
 ## Local commands
 
@@ -98,8 +124,8 @@ There is no application test stack or `platform-test-runner` service yet. The `t
 (`all`, `unit`, `e2e`, `-SlowMo`, `-NoVideo`, `-Keep`, `-NoBuild`) are reserved; they cannot currently run a suite.
 The test project name is `sounding-test`, separate from other solutions.
 
-Documentation generation captures documentation screenshots and runs the site build checks:
-Markdown transformation tests, TypeScript compilation, static export, and generated route/link/anchor/asset checks.
+Documentation generation captures documentation screenshots and runs the site build checks: TypeScript compilation,
+static export, and generated route/link/anchor/asset/redirect checks. The site has no unit tests for now.
 Run `.\platform.ps1 docs generate`; see [site instructions](../product/site/README.md) for build-only verification.
 
 ## Publishing
@@ -115,7 +141,8 @@ Both workflows run on every push to `main` and can be started by hand.
 
 The dashboard has no built-in authentication, and neither do its REST API (`/api/v1`) and MCP endpoint (`/mcp`): anyone
 who reaches port 8080 can read everything and request packet captures over REST. MCP tools are read-only. Keep the
-samples and dashboard private; the docs preview and MCP Inspector bind only to loopback. Store local settings in the
+samples and dashboard private; the docs preview and MCP Inspector bind only to loopback. On Kubernetes the
+[sample's NetworkPolicy](../../samples/kubernetes/sounding.yaml) stands in for loopback binding where the network plugin enforces it. Store local settings in the
 untracked `.env` file.
 
 ## Documents

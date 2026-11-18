@@ -65,9 +65,14 @@ export function PrevNextLinks() {
   let previousPage: NavLink | null = null
   let nextPage: NavLink | null = null
 
+  let find = (href?: string) =>
+    href
+      ? (allLinks.find((link) => normalizePathname(link.href) === href) ?? null)
+      : null
+
   if (current?.optional) {
-    previousPage = mainLinks[0] ?? null
-    nextPage = mainLinks[1] ?? null
+    previousPage = find(current.previous)
+    nextPage = find(current.next)
   } else {
     let linkIndex = mainLinks.findIndex(
       (link) => normalizePathname(link.href) === pathname,

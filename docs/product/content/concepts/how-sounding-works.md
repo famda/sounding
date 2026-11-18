@@ -3,14 +3,14 @@ title: How Sounding works
 description: The agent in your containers, the shared database, and the dashboard, and what each of them does.
 ---
 
-Sounding has three parts: an **agent** in each container you monitor, one **database** they all report to, and the
-**dashboard** you open in your browser.
+An agent in each monitored container samples its activity and writes the measurements to PostgreSQL. When you
+open that container’s charts in your browser, the dashboard reads its samples from the shared database.
 
 ![Agents inside your containers send their figures to one database, and the dashboard shows every host and container in your browser.](../../assets/how-it-works.svg)
 
 ## The agent
 
-The agent is part of your container image. A small launcher starts your application and the agent side by side. It
+The agent runs inside your container. A small launcher starts your application and the agent side by side. It
 keeps your application's user and command, and passes through its signals, exit code, and output. Sounding adds an
 agent inside the container, so its resource use counts toward that container.
 

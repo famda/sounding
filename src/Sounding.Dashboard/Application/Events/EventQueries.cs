@@ -38,7 +38,8 @@ public static class EventKind
     public const string Port = "port";
     public const string Destination = "destination";
     public const string Gpu = "gpu";
-    public static readonly string[] All = [Lifecycle, Oom, Memory, Cpu, Process, Port, Destination, Gpu];
+    public const string Identity = "identity";
+    public static readonly string[] All = [Lifecycle, Oom, Memory, Cpu, Process, Port, Destination, Gpu, Identity];
 }
 
 public sealed class EventLevelsAttribute() : ChoicesAttribute(EventLevel.All);

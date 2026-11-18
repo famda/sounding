@@ -1,4 +1,4 @@
-# A small shop platform, each container wrapped with the agent, reporting to the stack in ../docker-compose.yml.
+# A small shop platform, each container wrapped with the agent, reporting to the stack in ../../docker-compose.yml.
 #
 #   users (outside, no agent) ─▶ host port 8088 ─▶ proxy (nginx)
 #     proxy ─┬─▶ ui (node, renders pages server-side) ─▶ catalog-api
@@ -7,7 +7,7 @@
 #            └─▶ /api/assistant ─▶ assistant-api ─▶ ollama (GPU)
 #
 # From the repository root, with the stack running:
-#   docker compose -f samples/docker-compose.yml --env-file .env up -d --build
+#   docker compose -f samples/compose/docker-compose.yml --env-file .env up -d --build
 # Profiles:
 #   gpu        ollama and assistant-api, for the GPU pages (NVIDIA GPU); platform.ps1 start adds it when nvidia-smi
 #              finds one. Ollama is the only sample with GPU access, so without it the dashboard reports no GPU.
@@ -49,7 +49,7 @@ x-api-env: &api-env
 services:
   # Builds the agent image the samples copy it from; runs nothing.
   agent:
-    build: { context: .., dockerfile: src/Sounding.Agent/Dockerfile }
+    build: { context: ../.., dockerfile: src/Sounding.Agent/Dockerfile }
     image: famda/sounding:agent-latest
     deploy: { replicas: 0 }
 

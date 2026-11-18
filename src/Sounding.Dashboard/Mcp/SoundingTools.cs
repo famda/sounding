@@ -164,7 +164,7 @@ public sealed class SoundingTools(IMessageBus bus, FleetSnapshot snapshot)
     }
 
     [McpServerTool(Name = "get_dependencies", Title = "Get service dependencies", ReadOnly = true, Idempotent = true, Destructive = false, OpenWorld = false)]
-    [Description("Who calls whom: each entry is a caller and what it calls (another container, or an outside address), with the request rate, error percent and p95 latency seen in the traffic (HTTP, PostgreSQL, MySQL, Redis, MongoDB). Failing calls come first. Use it to follow a failure to the service that causes it.")]
+    [Description("Who calls whom: each entry is a caller and what it calls (another container, or an outside address), with the request rate, error percent and p95 latency seen in the traffic (HTTP, PostgreSQL, MySQL, Redis, MongoDB). Failing calls come first. observedBy says which side saw the call: a call through a Kubernetes Service shows as the caller's entry to the Service and each answering server's entry from the caller, the same calls seen from both ends, so don't add them up. Use it to follow a failure to the service that causes it.")]
     public async Task<string> GetDependencies(
         [Description(OptionalTarget)] string? target = null,
         CancellationToken cancellationToken = default)

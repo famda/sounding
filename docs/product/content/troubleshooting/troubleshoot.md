@@ -22,21 +22,23 @@ Work through these in order:
 
 1. **The image doesn't start through Sounding.** Check that the image contains `/opt/sounding` and that its
    `ENTRYPOINT` starts with `/opt/sounding/run`. See
-   [add the agent to your image](../get-started/getting-started.md#1-add-the-agent-to-your-image).
+   [add the agent to your image](../deployment/docker-compose.md#1-add-the-agent-to-your-image).
 2. **The agent can't reach the database.** Look in the container's logs for connection errors. Your application keeps
    running even when the agent can't connect, so a working application doesn't mean Sounding is working.
 3. **The connection string points to `localhost`.** Inside a container, `localhost` is the container itself. Use the
    database's host name.
 4. **The container and the dashboard use different databases.** Check that their connection strings point to the same
    database by comparing the host, port, and database name. Other options can differ.
-5. **The database requires encryption.** The agent can't connect to a server that requires it. See
-   [protect the connection](../operate/set-up-the-database.md#protect-the-connection).
+5. **On Kubernetes, the secret or label is missing.** A pod showing `CreateContainerConfigError` has no
+   `sounding-agent` secret in its namespace. With the bundled PostgreSQL, the namespace also needs the
+   `sounding-agents=true` label, or the database's NetworkPolicy turns the agent away. See
+   [copy the secret](../deployment/kubernetes.md#copy-the-secret).
 6. **The platform isn't supported.** Sounding needs x86-64 Linux containers with cgroup v2. See
-   [requirements](../reference/requirements.md).
+   [requirements](../get-started/getting-started.md#requirements).
 
 ## A container shows Not reporting
 
-The container hasn't reported for more than 10 seconds.
+By default, the dashboard shows **Not reporting** when a container hasn’t sent a sample for more than 10 seconds.
 
 - **It was killed or crashed.** A container that's killed can't report that it stopped, so it shows **Not reporting**
   instead of **Stopped**. Check its status:
@@ -48,6 +50,8 @@ The container hasn't reported for more than 10 seconds.
 - **It measures less often than every 10 seconds.** Raise `SOUNDING_STALE_AFTER_SECONDS` on the dashboard above
   the sampling interval in seconds. For example, if `SOUNDING_INTERVAL_MILLISECONDS` is `15000` (15 seconds), use a
   threshold above 15 seconds, such as `20`.
+
+After correcting the cause, open the container and check that fresh samples appear in its charts.
 
 ## The dashboard shows Stale data or Reconnecting
 
@@ -106,7 +110,7 @@ If captures work but **Requests** stays empty:
 
 1. Check that the container's GPU programs use CUDA. Graphics work (OpenGL, Vulkan) isn't measured per container.
 2. Check that the programs start through Sounding's launcher, as described in
-   [add the agent to your image](../get-started/getting-started.md#1-add-the-agent-to-your-image).
+   [add the agent to your image](../deployment/docker-compose.md#1-add-the-agent-to-your-image).
 3. Check that `CUDA_INJECTION64_PATH` isn't already set in the container: another tool using it, such as a profiler,
    prevents Sounding from measuring.
 4. If the CUDA programs run as a different user from the agent, the folder they report in (`/tmp/gpu-meter` by default)

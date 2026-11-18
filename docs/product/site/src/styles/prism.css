@@ -1,5 +1,5 @@
 pre[class*='language-'] {
-  color: var(--color-slate-50);
+  color: var(--color-slate-800);
 }
 
 .token.tag,
@@ -7,8 +7,9 @@ pre[class*='language-'] {
 .token.selector,
 .token.selector .class,
 .token.selector.class,
-.token.function {
-  color: var(--color-pink-400);
+.token.function,
+.token.module {
+  color: var(--color-pink-600);
 }
 
 .token.attr-name,
@@ -16,32 +17,80 @@ pre[class*='language-'] {
 .token.rule,
 .token.pseudo-class,
 .token.important {
-  color: var(--color-slate-300);
-}
-
-.token.module {
-  color: var(--color-pink-400);
+  color: var(--color-violet-600);
 }
 
 .token.attr-value,
 .token.class,
 .token.string,
 .token.property {
-  color: var(--color-sky-300);
+  color: var(--color-sky-700);
 }
 
 .token.punctuation,
 .token.attr-equals {
-  color: var(--color-slate-500);
+  color: var(--color-slate-400);
 }
 
 .token.unit,
 .language-css .token.function {
+  color: var(--color-teal-700);
+}
+
+.token.operator,
+.token.combinator {
+  color: var(--color-slate-500);
+}
+
+.dark pre[class*='language-'] {
+  color: var(--color-slate-50);
+}
+
+.dark .token.tag,
+.dark .token.class-name,
+.dark .token.selector,
+.dark .token.selector .class,
+.dark .token.selector.class,
+.dark .token.function,
+.dark .token.module {
+  color: var(--color-pink-400);
+}
+
+.dark .token.attr-name,
+.dark .token.keyword,
+.dark .token.rule,
+.dark .token.pseudo-class,
+.dark .token.important {
+  color: var(--color-slate-300);
+}
+
+.dark .token.attr-value,
+.dark .token.class,
+.dark .token.string,
+.dark .token.property {
+  color: var(--color-sky-300);
+}
+
+.dark .token.punctuation,
+.dark .token.attr-equals {
+  color: var(--color-slate-500);
+}
+
+.dark .token.unit,
+.dark .language-css .token.function {
   color: var(--color-teal-200);
 }
 
-.token.comment,
-.token.operator,
-.token.combinator {
+.dark .token.operator,
+.dark .token.combinator {
   color: var(--color-slate-400);
+}
+
+.token.comment {
+  color: var(--color-emerald-700);
+  font-style: italic;
+}
+
+.dark .token.comment {
+  color: var(--color-emerald-400);
 }

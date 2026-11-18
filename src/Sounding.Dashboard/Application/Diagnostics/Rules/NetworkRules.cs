@@ -45,14 +45,15 @@ internal static class NetworkRules
                 if (SoundingTraffic.IsOwn(r) || r.RequestsPerSecond < 0.01) continue;
                 // Both ends of a call between two monitored containers see it: across a host or the fleet the caller
                 // reports it, so one failing call is one finding.
-                var monitored = peers.ContainerAt(hostId, r.Peer);
+                var monitored = peers.ContainerAt(hostId, r.Peer, n.ClusterNetworks);
                 if (scope.Container is null && r.Role != "client" && monitored is not null) continue;
                 // A caller also names the service it calls: one that stopped reporting has no address on record, but
-                // keeps the name the caller used.
+                // keeps the name the caller used. A Kubernetes Service name is matched to no container.
                 var calledId = monitored ?? (r.Role == "client" && r.PeerName is { } peerName
                     ? PeerDirectory.Named(owner.Host.Containers, static c => c.Name, peerName)?.ContainerId
                     : null);
-                var peer = calledId is not null && owners.TryGetValue(calledId, out var called) ? called.Container.Name ?? calledId : r.PeerName ?? r.Peer;
+                var peer = calledId is not null && owners.TryGetValue(calledId, out var called) ? called.Container.Name ?? calledId
+                    : r.Role == "client" ? peers.Called(n, r.Peer, r.PeerName) : r.PeerName ?? r.Peer;
                 var side = r.Role == "client" ? $"calling {peer}:{r.Port}" : $"serving {peer}";
                 var errorPercent = r.ErrorsPerSecond * 100 / r.RequestsPerSecond;
                 if (errorPercent >= 5 && r.ErrorsPerSecond >= 0.01)

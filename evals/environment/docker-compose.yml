@@ -5,7 +5,7 @@ name: sounding-evals-env
 
 include:
   - path: [../../docker-compose.yml, dashboard.override.yml]
-  - path: [../../samples/docker-compose.yml, samples.override.yml]
+  - path: [../../samples/compose/docker-compose.yml, samples.override.yml]
 
 # A container that misbehaves on purpose, wrapped with the Sounding agent so the dashboard sees it. Created stopped;
 # the runner starts it when a scenario calls for it.

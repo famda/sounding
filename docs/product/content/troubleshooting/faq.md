@@ -5,8 +5,10 @@ description: Short answers to common questions about Sounding.
 
 ## Do I have to change my container images?
 
-Yes. Sounding runs inside each container you monitor, so its agent must be in the image: one `COPY` line and a change to
-the `ENTRYPOINT`. See [add Sounding to your application](../get-started/getting-started.md).
+With [Docker Compose](../deployment/docker-compose.md), yes. Copy the agent into your image and start your existing
+command through its launcher. On [Kubernetes](../deployment/kubernetes.md#2-add-the-agent-to-your-workload), an init
+container can supply the agent to an existing image if cluster policy permits. In either case, the agent runs inside
+each container you monitor.
 
 ## Is it a sidecar? Does it need the Docker socket?
 
@@ -36,8 +38,9 @@ everything running on the machine, including containers without Sounding.
 
 ## Is my data sent anywhere?
 
-No. The agents write only to your PostgreSQL database, and the dashboard reads only from it. Sounding has no cloud
-service and sends no usage data.
+The agents write to your PostgreSQL database, and the dashboard reads from it. Sounding sends no usage data. If
+you [connect an assistant](../ai-assistants/connect-an-ai-assistant.md) that uses a hosted model, the model’s
+provider receives the monitoring data the assistant reads.
 
 ## How far back can I look?
 
@@ -50,8 +53,7 @@ No. Keep it private, or put it behind a reverse proxy that signs users in. See
 
 ## Does it work with Kubernetes, Podman, or ARM?
 
-Not yet. Sounding supports x86-64 Linux containers on Docker Engine and Docker Desktop. See
-[requirements](../reference/requirements.md).
+Kubernetes, yes. Podman and ARM, not yet. See [supported platforms](../index.md#supported-platforms).
 
 ## Can I use it with Alpine or distroless images?
 

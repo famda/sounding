@@ -223,6 +223,8 @@ public static class GetDependenciesHandler
 {
     public const int MaxLimit = 500;
     private const string Client = "client";
+    private const string Server = "server";
+    private const string Both = "both";
 
     public static async Task<Result<Dependencies>> Handle(GetDependenciesQuery query, FleetSnapshot snapshot, NetworkReader reader, CancellationToken cancellationToken)
     {
@@ -249,51 +251,80 @@ public static class GetDependenciesHandler
             && (scope.Container is { } c ? c.ContainerId == containerId : hostOf.GetValueOrDefault(containerId) == scope.Host!.HostId);
     }
 
-    // Every edge between the containers whose networks were read, failing first, then busiest. A peer address is
-    // matched only to a container on the observer's own host (see PeerDirectory).
+    // Every edge between the containers whose networks were read, failing first, then busiest. An end is a container
+    // only when it owns the observed address (see PeerDirectory), never because of a name: a Kubernetes Service stays
+    // an end of its own, named as the caller called it, whatever pods answer it.
+    //
+    // Each side reports what it saw. The client's and the server's views are merged only when they name the same edge
+    // (both ends, direction, transport and port), and then the client's figures are shown, not their sum. A call
+    // through a Service is two edges: the client's, to the Service, which keeps every failure the client saw, and each
+    // answering server's, from the client, with what that server saw. They overlap; ObservedBy tells which side saw each.
     public static List<DependencyEdge> Edges(FleetState fleet, IReadOnlyList<ContainerNetwork> networks)
     {
         var names = NetworkNames.Of(fleet);
         var peers = new PeerDirectory(networks);
+        var ownOf = new Dictionary<string, HashSet<(string Address, int Port)>>(networks.Count);
+        foreach (var network in networks) ownOf[network.ContainerId] = SoundingTraffic.OwnPeers(network.Network);
 
-        string Label(string? containerId, string address, string? name) =>
-            containerId is null ? name ?? address : names.GetValueOrDefault(containerId) ?? containerId;
+        string Label(string? containerId, string fallback) => containerId is null ? fallback : names.GetValueOrDefault(containerId) ?? containerId;
 
-        var edges = new Dictionary<(string From, string To, int Port), EdgeBuilder>();
+        var edges = new Dictionary<(string From, string To, int Port, string Protocol), EdgeBuilder>();
         EdgeBuilder Edge(string? fromId, string fromLabel, string? toId, string toLabel, int port, string protocol, bool internet)
         {
-            var key = (fromId ?? fromLabel, toId ?? toLabel, port);
+            var key = (fromId ?? fromLabel, toId ?? toLabel, port, protocol);
             if (!edges.TryGetValue(key, out var edge)) edges[key] = edge = new EdgeBuilder(fromId, fromLabel, toId, toLabel, port, protocol, internet);
             return edge;
+        }
+
+        // What a server sees arriving from a monitored caller is Sounding's own only when the caller's processes show
+        // it: every one of the caller's connections to this server's address and port belongs to Sounding.
+        bool CallerOwn(string callerId, ContainerNetwork server, int port)
+        {
+            if (!ownOf.TryGetValue(callerId, out var own) || own.Count == 0) return false;
+            foreach (var address in server.Network.Addresses ?? [])
+            {
+                if (own.Contains((address, port))) return true;
+            }
+
+            return false;
         }
 
         foreach (var network in networks)
         {
             var self = network.ContainerId;
-            var own = SoundingTraffic.OwnPeers(network.Network);
-            foreach (var peer in network.Network.Peers ?? [])
+            var selfLabel = Label(self, self);
+            var n = network.Network;
+            var own = ownOf[self];
+            foreach (var peer in n.Peers ?? [])
             {
                 if (own.Contains((peer.Address, peer.Port))) continue;
-                var other = peers.ContainerAt(network.HostId, peer.Address);
-                // A peer that is itself monitored reports its side; take the caller's view of each edge.
-                if (peer.Inbound && other is not null) continue;
-                var edge = peer.Inbound
-                    ? Edge(other, Label(other, peer.Address, peer.Name), self, Label(self, "", null), peer.Port, peer.Protocol, peer.Internet)
-                    : Edge(self, Label(self, "", null), other, Label(other, peer.Address, peer.Name), peer.Port, peer.Protocol, peer.Internet);
-                edge.BytesPerSecond += peer.BytesPerSecond;
-                edge.Bytes += peer.Bytes;
-                edge.LastSeen = Math.Min(edge.LastSeen, peer.LastSeenSecondsAgo);
+                var other = peers.ContainerAt(network.HostId, peer.Address, n.ClusterNetworks);
+                if (peer.Inbound)
+                {
+                    if (other is not null && CallerOwn(other, network, peer.Port)) continue;
+                    Edge(other, Label(other, peer.Name ?? peer.Address), self, selfLabel, peer.Port, peer.Protocol, peer.Internet).Observe(peer, Server);
+                }
+                else
+                {
+                    Edge(self, selfLabel, other, Label(other, peers.Called(n, peer.Address, peer.Name)), peer.Port, peer.Protocol, peer.Internet)
+                        .Observe(peer, Client);
+                }
             }
 
-            foreach (var request in network.Network.Requests ?? [])
+            foreach (var request in n.Requests ?? [])
             {
                 if (SoundingTraffic.IsOwn(request)) continue;
-                var other = peers.ContainerAt(network.HostId, request.Peer);
-                var client = request.Role == Client;
-                var edge = client
-                    ? Edge(self, Label(self, "", null), other, Label(other, request.Peer, request.PeerName), request.Port, "tcp", false)
-                    : Edge(other, Label(other, request.Peer, request.PeerName), self, Label(self, "", null), request.Port, "tcp", false);
-                edge.Add(request, client ? "client" : "server");
+                var other = peers.ContainerAt(network.HostId, request.Peer, n.ClusterNetworks);
+                if (request.Role == Client)
+                {
+                    Edge(self, selfLabel, other, Label(other, peers.Called(n, request.Peer, request.PeerName)), request.Port, "tcp", false)
+                        .Add(request, Client);
+                }
+                else
+                {
+                    if (other is not null && CallerOwn(other, network, request.Port)) continue;
+                    Edge(other, Label(other, request.PeerName ?? request.Peer), self, selfLabel, request.Port, "tcp", false).Add(request, Server);
+                }
             }
         }
 
@@ -306,21 +337,28 @@ public static class GetDependenciesHandler
 
     private sealed class EdgeBuilder(string? fromId, string from, string? toId, string to, int port, string protocol, bool internet)
     {
-        // Requests seen by the client and by the server: the client's view counts what failed to reach the server.
-        private readonly List<RequestStats> _client = [];
-        private readonly List<RequestStats> _server = [];
+        // Each side's view, kept apart: the client's counts what failed to reach the server, the server's what arrived.
+        private readonly List<RequestStats> _clientRequests = [];
+        private readonly List<RequestStats> _serverRequests = [];
+        private Traffic _clientTraffic;
+        private Traffic _serverTraffic;
+        private double _lastSeen = double.MaxValue;
 
-        public string? FromId => fromId;
-        public string? ToId => toId;
-        public double BytesPerSecond { get; set; }
-        public long Bytes { get; set; }
-        public double LastSeen { get; set; } = double.MaxValue;
+        public void Observe(Peer peer, string side)
+        {
+            ref var traffic = ref side == Client ? ref _clientTraffic : ref _serverTraffic;
+            traffic = new Traffic(true, traffic.Rate + peer.BytesPerSecond, traffic.Bytes + peer.Bytes);
+            _lastSeen = Math.Min(_lastSeen, peer.LastSeenSecondsAgo);
+        }
 
-        public void Add(RequestStats request, string role) => (role == Client ? _client : _server).Add(request);
+        public void Add(RequestStats request, string side) => (side == Client ? _clientRequests : _serverRequests).Add(request);
 
         public DependencyEdge Build()
         {
-            var (requests, observer) = _client.Count > 0 ? (_client, Client) : (_server, _server.Count > 0 ? "server" : null);
+            var byClient = _clientTraffic.Seen || _clientRequests.Count > 0;
+            var byServer = _serverTraffic.Seen || _serverRequests.Count > 0;
+            var traffic = _clientTraffic.Seen ? _clientTraffic : _serverTraffic;
+            var requests = _clientRequests.Count > 0 ? _clientRequests : _serverRequests;
             double? rps = null, errors = null, errorPercent = null, p95 = null;
             string? requestProtocol = null;
             IReadOnlyList<string>? operations = null;
@@ -335,9 +373,12 @@ public static class GetDependenciesHandler
                     .Select(r => $"{r.Operation}: {r.RequestsPerSecond:0.##}/s, {r.ErrorsPerSecond:0.##} err/s, p95 {r.P95Ms?.ToString("0") ?? "?"} ms")];
             }
 
-            return new DependencyEdge(fromId, from, toId, to, port, protocol, internet, Math.Round(BytesPerSecond),
-                Bytes, LastSeen == double.MaxValue ? 0 : LastSeen, requestProtocol, observer, rps, errors, errorPercent, p95, operations);
+            return new DependencyEdge(fromId, from, toId, to, port, protocol, internet, Math.Round(traffic.Rate),
+                traffic.Bytes, _lastSeen == double.MaxValue ? 0 : _lastSeen, requestProtocol,
+                byClient && byServer ? Both : byClient ? Client : Server, rps, errors, errorPercent, p95, operations);
         }
+
+        private readonly record struct Traffic(bool Seen, double Rate, long Bytes);
     }
 }
 

@@ -24,7 +24,8 @@ Look at **Breakdown and limit events**:
 - **Hit the limit** counts how often the container reached its limit.
 
 Both count since the container started, so a non-zero value may be from the past. Open **Events** to see when it
-happened, and which process was most likely killed.
+happened, and which process was most likely killed. If the container restarted, select a range that includes the
+restart and compare the last memory samples before it stopped with its limit.
 
 ## 3. Check for pressure
 

@@ -4,8 +4,7 @@ description: How often Sounding measures, how much history you can see, and what
 ---
 
 By default, Sounding samples every container and host once a second. The dashboard shows those figures live and over
-the last **1m**, **5m**, **15m**, **1h**, **6h**, or **24h**. Longer ranges average samples, so use a shorter range to
-investigate a brief spike.
+the last **1m**, **5m**, **15m**, **1h**, **6h**, or **24h**.
 
 ## Samples and rates
 
@@ -25,7 +24,7 @@ Some figures are measured less often:
 
 Choose **1m**, **5m**, **15m**, **1h**, **6h**, or **24h** in the header. Each chart shows about 180 points, so wider
 ranges average more samples into each point: in the 1-hour range, each point is the average of 20 seconds, and in the
-24-hour range, of 8 minutes. A short spike can disappear in a wide range; switch to a shorter one to see it.
+24-hour range, of 8 minutes. Select a shorter range to inspect a brief spike.
 
 The default retention target is 24 hours. Running host-sampling agents prune older samples, events, and captures
 periodically. If all those agents stop, the dashboard alone doesn't delete old data; cleanup resumes when eligible

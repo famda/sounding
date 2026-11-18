@@ -4,12 +4,42 @@ import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
 
 import { transformDocument } from './transform-document.mjs'
+import { zipFolder } from './zip.mjs'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 const site = path.resolve(root, '..')
 const contentRoot = process.env.DOCS_CONTENT ?? '/input/content'
 const assetsRoot = process.env.DOCS_ASSETS ?? '/input/assets'
+const samplesRoot = process.env.DOCS_SAMPLES ?? '/input/samples'
+
+// Sample folder, and the name of its zip (and of the folder the zip unpacks to).
+const downloads = [['kubernetes', 'sounding-kubernetes']]
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '/sounding'
+
+// Published URLs of pages that moved, and where each went. GitHub Pages has no server redirects: each old URL gets a
+// static page that sends the reader on.
+export const redirects = {
+  '/get-started/monitor-more-containers/': '/get-started/monitor-containers-and-hosts/',
+  '/get-started/full-demo/': '/get-started/docker-demo/',
+  '/reference/requirements/': '/get-started/getting-started/#requirements',
+}
+
+function redirectPage(destination) {
+  const href = `${basePath}${destination}`
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moved | Sounding</title>
+<meta name="robots" content="noindex">
+<link rel="canonical" href="${href}">
+<meta http-equiv="refresh" content="0; url=${href}">
+<script>location.replace(${JSON.stringify(href)}${destination.includes('#') ? '' : ' + location.hash'})</script>
+</head>
+<body><p>This page moved to <a href="${href}">${href}</a>.</p></body>
+</html>
+`
+}
 
 async function markdownFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
@@ -101,7 +131,24 @@ export async function prepare() {
   await mkdir(path.dirname(publicAssets), { recursive: true })
   await cp(assetsRoot, publicAssets, { recursive: true })
 
-  console.log(`Prepared ${documents.length} Markdown routes and copied documentation assets.`)
+  // Samples a page offers as a download, so readers needn't clone the repository.
+  const publicDownloads = path.join(site, 'public', 'downloads')
+  await rm(publicDownloads, { recursive: true, force: true })
+  await mkdir(publicDownloads, { recursive: true })
+  for (const [folder, archive] of downloads) {
+    await writeFile(path.join(publicDownloads, `${archive}.zip`), await zipFolder(path.join(samplesRoot, folder), archive))
+  }
+
+  for (const [from, destination] of Object.entries(redirects)) {
+    const directory = path.join(site, 'public', from)
+    await rm(directory, { recursive: true, force: true })
+    await mkdir(directory, { recursive: true })
+    await writeFile(path.join(directory, 'index.html'), redirectPage(destination))
+  }
+
+  console.log(
+    `Prepared ${documents.length} Markdown routes, documentation assets, ${downloads.length} downloads and ${Object.keys(redirects).length} redirects.`,
+  )
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

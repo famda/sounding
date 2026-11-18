@@ -62,8 +62,8 @@ export function TableOfContents({
   }
 
   return (
-    <div className="hidden xl:sticky xl:top-19 xl:-mr-4 xl:block xl:h-[calc(100vh-4.75rem)] xl:flex-none xl:overflow-y-auto xl:py-12 xl:pr-4">
-      <nav aria-labelledby="on-this-page-title" className="w-48">
+    <div className="scrollbar-hidden hidden xl:sticky xl:top-19 xl:-mr-4 xl:block xl:h-[calc(100vh-4.75rem)] xl:flex-none xl:overflow-y-auto xl:py-12 xl:pr-4">
+      <nav aria-labelledby="on-this-page-title" className="w-60">
         {tableOfContents.length > 0 && (
           <>
             <h2

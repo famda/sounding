@@ -32,6 +32,11 @@ public sealed class AgentService(
     private PacketCapture? _completedCapture;
     private DateTimeOffset _nextCapturePoll;
 
+    private const string NetworkOff = "Turned off for this container (SOUNDING_SAMPLE_NETWORK=false): another container sharing its network reports it";
+
+    // Containers of one Kubernetes pod share a network: one of them reports it, so the traffic isn't counted twice.
+    private readonly bool _sampleNetwork = options.Value.SampleNetwork;
+
     private readonly TimeSpan _interval = TimeSpan.FromMilliseconds(Math.Max(250, options.Value.IntervalMilliseconds));
     private readonly TimeSpan _retention = TimeSpan.FromMinutes(Math.Max(1, options.Value.RetentionMinutes));
     private readonly HashSet<string> _failing = [];
@@ -73,7 +78,7 @@ public sealed class AgentService(
                 var held = roles.Count > 0 ? await leadership.RefreshAsync(roles, stoppingToken) : new HashSet<HostRole>();
                 var host = hostSampler.Sample(held);
                 var gpu = Try("GPU use", gpuMeterSampler.Sample, null);
-                var (traffic, dns, network) = Try("network activity", trafficSampler.Sample, (null, null, null));
+                var (traffic, dns, network) = _sampleNetwork ? Try("network activity", trafficSampler.Sample, (null, null, null)) : (null, null, null);
                 var processes = Try("processes", () => processSampler.Sample(gpu?.Processes ?? new Dictionary<int, ProcessGpu>()), []);
                 processes = processes
                     .Select(p => trafficSampler.PortsByPid.TryGetValue(p.Pid, out var ports) || trafficSampler.ConnectionsByPid.ContainsKey(p.Pid)
@@ -114,7 +119,7 @@ public sealed class AgentService(
                     };
                 }
 
-                var state = new ContainerState(processes, network ?? new NetworkActivity("sockets", "Not available", [], 0, [], []), usage?.Detail);
+                var state = new ContainerState(processes, network ?? new NetworkActivity("sockets", _sampleNetwork ? "Not available" : NetworkOff, [], 0, [], []), usage?.Detail);
                 var events = _detector.Detect(usage?.Detail, processes, processSampler.Complete);
                 events.AddRange(trafficSampler.TakeEvents());
                 events.AddRange(gpuSampler.TakeEvents());

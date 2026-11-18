@@ -3,8 +3,6 @@
 import clsx from 'clsx'
 import { createContext, useContext } from 'react'
 
-import { Icon } from '@/components/Icon'
-
 const CalloutContext = createContext(false)
 
 export function useInCallout() {
@@ -14,22 +12,28 @@ export function useInCallout() {
 const styles = {
   note: {
     container:
-      'bg-sky-50 ring-1 ring-sky-200/80 dark:bg-slate-800/60 dark:ring-slate-300/10',
-    title: 'text-sky-900 dark:text-sky-400',
-    body: 'text-sky-800 prose-a:text-sky-900 prose-code:text-sky-900 dark:text-slate-300 dark:prose-a:text-sky-300 dark:prose-code:text-slate-100 dark:prose-strong:text-slate-100',
+      'border-sky-200 border-l-sky-500 bg-sky-50/70 dark:border-sky-400/15 dark:border-l-sky-400 dark:bg-sky-400/5',
+    accent: 'text-sky-600 dark:text-sky-400',
   },
   warning: {
     container:
-      'bg-amber-50 ring-1 ring-amber-200/80 dark:bg-slate-800/60 dark:ring-slate-300/10',
-    title: 'text-amber-900 dark:text-amber-500',
-    body: 'text-amber-800 prose-a:text-amber-900 prose-code:text-amber-900 dark:text-slate-300 dark:prose-a:text-amber-300 dark:prose-code:text-slate-100 dark:prose-strong:text-slate-100',
+      'border-amber-200 border-l-amber-500 bg-amber-50/70 dark:border-amber-400/15 dark:border-l-amber-400 dark:bg-amber-400/5',
+    accent: 'text-amber-600 dark:text-amber-400',
   },
 }
 
 const icons = {
-  note: (props: { className?: string }) => <Icon icon="lightbulb" {...props} />,
-  warning: (props: { className?: string }) => (
-    <Icon icon="warning" color="amber" {...props} />
+  note: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
+  warning: (
+    <>
+      <path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9.5v4M12 17h.01" />
+    </>
   ),
 }
 
@@ -42,25 +46,28 @@ export function Callout({
   children: React.ReactNode
   type?: keyof typeof styles
 }) {
-  let IconComponent = icons[type]
-
   return (
     <CalloutContext.Provider value={true}>
-      <div className={clsx('my-8 rounded-2xl p-5 sm:p-6', styles[type].container)}>
-        <div className="flex items-center gap-3">
-          <IconComponent className="h-6 w-6 flex-none" />
-          <p
-            className={clsx('m-0 not-prose font-display text-lg font-medium', styles[type].title)}
+      <div
+        role="note"
+        className={clsx('my-8 rounded-xl border border-l-4 px-5 py-4', styles[type].container)}
+      >
+        <div className={clsx('not-prose flex items-center gap-2', styles[type].accent)}>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5 flex-none"
           >
-            {title}
-          </p>
+            {icons[type]}
+          </svg>
+          <p className="m-0 font-display text-sm font-semibold tracking-wide">{title}</p>
         </div>
-        <div
-          className={clsx(
-            'prose mt-3 max-w-none dark:prose-invert [&>:first-child]:mt-0 [&>:last-child]:mb-0',
-            styles[type].body,
-          )}
-        >
+        <div className="prose prose-slate mt-2 max-w-none text-[0.9375rem] dark:prose-invert dark:text-slate-300 dark:prose-strong:text-white [&>:first-child]:mt-0 [&>:last-child]:mb-0">
           {children}
         </div>
       </div>

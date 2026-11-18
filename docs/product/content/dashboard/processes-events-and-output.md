@@ -11,7 +11,8 @@ when.
 The CPU, Memory, GPU, and Disk pages end with a process table, sorted by what that page is about.
 
 - **Last …** (the default) covers the selected time range: every process seen in it, including those that have ended,
-  with averages and totals over the time each ran.
+  with averages and totals over the time each ran. To investigate an event, select a range that includes its time
+  so you can find processes that have since exited.
 - **Now** shows the processes at this moment.
 - **Hover over a chart** to see the processes at that moment.
 

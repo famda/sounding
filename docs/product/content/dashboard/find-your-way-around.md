@@ -36,8 +36,8 @@ them. Select a tile, or choose a page from the menu in the header:
 ## Read a chart
 
 - **Choose the time range** in the header: **1m**, **5m**, **15m**, **1h**, **6h**, or **24h**.
-- **Hover** over a chart to see its values at that moment. Every chart on the page follows the same moment, and the
-  process tables show the processes at that time.
+- **Hover** over a point to read the values across all charts at that moment. On a container’s CPU page, the
+  process table shows which processes were active then.
 - **A dashed line** is a limit or the capacity, when there is one.
 - **Select ?** next to a chart to see what it shows and what each line means.
 

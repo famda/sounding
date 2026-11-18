@@ -81,7 +81,62 @@ function transformProse(body, relativeDocument, basePath) {
   return result + transformLinks(body.slice(cursor), relativeDocument, basePath)
 }
 
+// Between <!-- tabs --> and <!-- /tabs -->, each heading of the first heading's level starts a tab named after it.
+// GitHub hides the comments, so the source still reads as ordinary sections there.
+function transformTabs(body, relativeDocument) {
+  const lines = body.split('\n')
+  const output = []
+  let tabs = null
+  let level = 0
+  let fence = null
+
+  for (const line of lines) {
+    const bare = line.replace(/\r$/, '')
+    const marker = bare.trim()
+    const fenceMatch = bare.match(/^[ \t]*(`{3,}|~{3,})/)
+    if (fenceMatch) {
+      if (!fence) fence = fenceMatch[1]
+      else if (fenceMatch[1].startsWith(fence) && bare.trim() === fenceMatch[1]) fence = null
+    }
+
+    if (!fence && marker === '<!-- tabs -->') {
+      if (tabs) throw new Error(`Nested tabs in ${relativeDocument}`)
+      tabs = []
+      level = 0
+      continue
+    }
+    if (!fence && marker === '<!-- /tabs -->') {
+      if (!tabs?.length) throw new Error(`Tabs without headings in ${relativeDocument}`)
+      output.push('{% tabs %}')
+      for (const tab of tabs) {
+        output.push('', `{% tab label=${JSON.stringify(tab.label)} %}`, '', ...tab.lines, '', '{% /tab %}')
+      }
+      output.push('', '{% /tabs %}')
+      tabs = null
+      continue
+    }
+    if (!tabs) {
+      output.push(line)
+      continue
+    }
+
+    const heading = !fence && !fenceMatch && bare.match(/^(#{2,6})[ \t]+(.+?)[ \t]*#*$/)
+    if (heading && (!level || heading[1].length === level)) {
+      level = heading[1].length
+      tabs.push({ label: heading[2], lines: [] })
+    } else if (tabs.length) {
+      tabs.at(-1).lines.push(line)
+    } else if (marker) {
+      throw new Error(`Content before the first tab heading in ${relativeDocument}`)
+    }
+  }
+
+  if (tabs) throw new Error(`Unclosed tabs in ${relativeDocument}`)
+  return output.join('\n')
+}
+
 function transformBody(body, relativeDocument, basePath) {
+  body = transformTabs(body, relativeDocument)
   const lineOffsets = [0]
   for (const match of body.matchAll(/\n/g)) lineOffsets.push(match.index + 1)
 

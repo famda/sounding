@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
+
 import sharp from 'sharp'
 import yaml from 'js-yaml'
+
+import { redirects } from './prepare.mjs'
 
 const output = path.resolve('dist')
 const app = path.resolve('src/app')
@@ -102,7 +105,12 @@ assert.ok(statSync(socialImage).size < 5 * 1024 * 1024, 'The social preview must
 assert.ok(existsSync(path.join(output, '404.html')), 'Missing exported 404 page.')
 assert.ok(existsSync(path.join(output, '404', 'index.html')), 'Missing exported fallback page.')
 assert.ok(existsSync(path.join(output, '_not-found', 'index.html')), 'Missing exported not-found route.')
-assert.equal(pages.size, documents.length + 3, 'Unexpected number of exported HTML pages.')
+assert.equal(pages.size, documents.length + 3 + Object.keys(redirects).length, 'Unexpected number of exported HTML pages.')
+for (const [from, destination] of Object.entries(redirects)) {
+  const page = path.join(output, from, 'index.html')
+  assert.ok(existsSync(page), `Missing redirect page for ${from}.`)
+  assert.ok(readFileSync(page, 'utf8').includes(`url=${basePath}${destination}`), `Redirect from ${from} does not lead to ${destination}.`)
+}
 assert.ok(existsSync(path.join(output, 'assets', 'logo.svg')), 'Missing copied documentation assets.')
 assert.ok(existsSync(path.join(output, '_next')), 'Missing Next.js static resources.')
 

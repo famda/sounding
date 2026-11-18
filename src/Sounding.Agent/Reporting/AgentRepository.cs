@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -90,6 +91,7 @@ public sealed class AgentRepository(AgentConnection database, HostIdentity ident
     public async Task RegisterAsync(string? kernel, CancellationToken cancellationToken)
     {
         _latestWritten = null;
+        var killed = _registered ? null : await UnreportedStopAsync(cancellationToken);
         await using var batch = new NpgsqlBatch(await database.GetAsync(cancellationToken));
         batch.BatchCommands.Add(Command("""
             insert into hosts (host_id, display_name, kernel, retention)
@@ -118,7 +120,9 @@ public sealed class AgentRepository(AgentConnection database, HostIdentity ident
             ("container", identity.ContainerId), ("host", identity.HostId), ("name", identity.Name), ("process", ProcessStarted)));
         if (!_registered)
         {
+            if (killed is not null) batch.BatchCommands.Add(Event(killed));
             batch.BatchCommands.Add(Event(new AgentEvent("lifecycle", "info", "Started")));
+            if (identity.Warning is { } warning) batch.BatchCommands.Add(Event(new AgentEvent("identity", "warning", warning)));
             batch.BatchCommands.Add(Command("""
                 update captures set status = 'failed', finished_at = now()
                 where container_id = @container and status = 'running'
@@ -225,6 +229,50 @@ public sealed class AgentRepository(AgentConnection database, HostIdentity ident
         LargestPaths: d.LargestPaths, FileCount: d.FileCount, GpuKernels: d.GpuKernels, GpuAllocationFailures: d.GpuAllocationFailures,
         Mounts: d.Mounts, DiskGrowthBytesPerHour: d.DiskGrowthBytesPerHour, DiskFreeBytes: d.DiskFreeBytes, OpenFilesUncounted: d.OpenFilesUncounted,
         DeletedFiles: d.DeletedFiles, GrowingPaths: d.GrowingPaths, LargestFiles: d.LargestFiles, RecentLogs: d.RecentLogs);
+
+    // The previous run of this container ended without its stop being recorded: the kernel or the runtime killed it
+    // at once, agent included (Kubernetes kills a container's every process on OOM: memory.oom.group), or its host
+    // went away. Which of these is not recorded anywhere the agent can read, so the last memory sample is reported as
+    // evidence, never as the cause: a forced kill can follow a high sample, and a sudden spike a low one.
+    private async Task<AgentEvent?> UnreportedStopAsync(CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("""
+            select s.memory_bytes, s.memory_limit_bytes, extract(epoch from now() - s.ts)::float8
+            from containers c
+            left join lateral (
+                select ts, memory_bytes, memory_limit_bytes from container_samples
+                where container_id = c.container_id order by ts desc limit 1
+            ) s on true
+            where c.container_id = @container and c.stopped_at is null
+              and c.process_started_at is not null and c.process_started_at <> @process
+            """, await database.GetAsync(cancellationToken));
+        command.Parameters.AddWithValue("container", identity.ContainerId);
+        command.Parameters.AddWithValue("process", ProcessStarted);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+
+        var memory = reader.IsDBNull(0) ? (long?)null : reader.GetInt64(0);
+        var limit = reader.IsDBNull(1) ? (long?)null : reader.GetInt64(1);
+        var age = reader.IsDBNull(2) ? (double?)null : reader.GetDouble(2);
+        const string stopped = "Restarted after stopping without warning";
+        if (memory is not { } used || limit is not > 0 || age is not { } seconds)
+        {
+            return new AgentEvent("lifecycle", "warning", $"{stopped}: killed at once (forced, or out of memory), or its host stopped");
+        }
+
+        var evidence = string.Create(CultureInfo.InvariantCulture,
+            $"its last sample, {Age(seconds)} before this start, had memory at {used * 100.0 / limit:0}% of its limit");
+        return new AgentEvent("lifecycle", "warning", used >= limit * PossibleOutOfMemoryShare && seconds <= PossibleOutOfMemoryAge.TotalSeconds
+            ? $"{stopped}, possibly out of memory: {evidence}"
+            : $"{stopped}: killed at once (forced, or out of memory), or its host stopped; {evidence}");
+    }
+
+    private static string Age(double seconds) => seconds < 120
+        ? string.Create(CultureInfo.InvariantCulture, $"{seconds:0} s")
+        : string.Create(CultureInfo.InvariantCulture, $"{seconds / 60:0} min");
+
+    private const double PossibleOutOfMemoryShare = 0.9;
+    private static readonly TimeSpan PossibleOutOfMemoryAge = TimeSpan.FromMinutes(5);
 
     private NpgsqlBatchCommand Event(AgentEvent e) => Command(
         "insert into events (host_id, container_id, ts, kind, level, message) values (@host, @container, now(), @kind, @level, @message)",

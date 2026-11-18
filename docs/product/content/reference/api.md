@@ -15,7 +15,7 @@ to investigate the same monitoring data through read-only tools.
 
 ## Try it
 
-Start with a question: **what needs attention right now?** The answer below is shortened, and comes from the worker in the
+Start with a question: **what needs attention right now?** A healthy installation may return no findings. The shortened response below shows a finding for the worker in the
 [memory leak tutorial](../ai-assistants/tutorial-find-a-memory-leak.md):
 
 ```bash

@@ -1,0 +1,73 @@
+# Two web servers and two clients that call them every two seconds, one of each per node. Each image has the agent
+# built in (web/, client/).
+apiVersion: v1
+kind: Namespace
+# sounding-agents lets its pods reach the bundled PostgreSQL (see sounding.yaml).
+metadata: { name: demo, labels: { sounding-agents: "true" } }
+---
+# Settings shared by the namespace's agents.
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: sounding-agent, namespace: demo }
+data:
+  # The node agent (node-agent.yaml) reports the machine.
+  SOUNDING_SAMPLE_HOST: "false"
+  # The cluster's pod and Service ranges (Docker Desktop's): addresses that name the same pod or Service on every node.
+  SOUNDING_CLUSTER_NETWORKS: "10.244.0.0/16,10.96.0.0/16"
+---
+apiVersion: v1
+kind: Service
+metadata: { name: web, namespace: demo }
+spec:
+  selector: { app: web }
+  ports: [{ port: 80 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: web, namespace: demo }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: web } }
+  template:
+    metadata: { labels: { app: web } }
+    spec:
+      # One replica per node, the control plane included (Docker Desktop's kind cluster has two nodes).
+      tolerations: [{ key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }]
+      topologySpreadConstraints:
+        - { maxSkew: 1, topologyKey: kubernetes.io/hostname, whenUnsatisfiable: DoNotSchedule, labelSelector: { matchLabels: { app: web } } }
+      containers:
+        - name: web
+          image: sounding-demo/web:1
+          resources: { limits: { cpu: 500m, memory: 128Mi } }
+          envFrom: [{ secretRef: { name: sounding-agent } }, { configMapRef: { name: sounding-agent } }]
+          env:
+            - { name: SOUNDING_HOST_ID, valueFrom: { fieldRef: { fieldPath: spec.nodeName } } }
+            - { name: SOUNDING_POD_NAMESPACE, valueFrom: { fieldRef: { fieldPath: metadata.namespace } } }
+            - { name: SOUNDING_POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SOUNDING_POD_UID, valueFrom: { fieldRef: { fieldPath: metadata.uid } } }
+            - { name: SOUNDING_POD_CONTAINER, value: web }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: client, namespace: demo }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: client } }
+  template:
+    metadata: { labels: { app: client } }
+    spec:
+      # One replica per node, the control plane included (Docker Desktop's kind cluster has two nodes).
+      tolerations: [{ key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }]
+      topologySpreadConstraints:
+        - { maxSkew: 1, topologyKey: kubernetes.io/hostname, whenUnsatisfiable: DoNotSchedule, labelSelector: { matchLabels: { app: client } } }
+      containers:
+        - name: client
+          image: sounding-demo/client:1
+          resources: { limits: { cpu: 100m, memory: 64Mi } }
+          envFrom: [{ secretRef: { name: sounding-agent } }, { configMapRef: { name: sounding-agent } }]
+          env:
+            - { name: SOUNDING_HOST_ID, valueFrom: { fieldRef: { fieldPath: spec.nodeName } } }
+            - { name: SOUNDING_POD_NAMESPACE, valueFrom: { fieldRef: { fieldPath: metadata.namespace } } }
+            - { name: SOUNDING_POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SOUNDING_POD_UID, valueFrom: { fieldRef: { fieldPath: metadata.uid } } }
+            - { name: SOUNDING_POD_CONTAINER, value: client }

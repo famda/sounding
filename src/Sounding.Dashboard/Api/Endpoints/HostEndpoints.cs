@@ -13,7 +13,7 @@ public static class HostEndpoints
 {
     public static RouteGroupBuilder MapHostEndpoints(this RouteGroupBuilder api)
     {
-        var hosts = api.MapGroup("/hosts").WithTags("Hosts");
+        var hosts = api.MapGroup("/hosts").WithTags("Hosts").DecodeSlashes("hostId");
 
         hosts.MapGet("/", static async ([HostStatuses] string? status, int? page, int? pageSize, IMessageBus bus, CancellationToken cancellationToken) =>
                 (await bus.InvokeAsync<Result<PaginatedList<HostOverview>>>(new GetHostsQuery(status, page, pageSize), cancellationToken)).ToHttpResult())

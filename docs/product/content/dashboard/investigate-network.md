@@ -34,8 +34,8 @@ how much traffic goes each way over time.
 
 **Requests** shows the requests the container made or answered in the last minute, per destination and operation: how
 many per second, how many failed, and how long the answers took (the median, and the time 95 in 100 answers came
-within). Sounding recognizes supported protocols even on unusual ports. Encrypted requests, such as HTTPS, can't be
-read. See the [supported protocols](#supported-protocols).
+within). Sounding recognizes supported protocols even on unusual ports. HTTPS traffic appears in connection statistics. Its encrypted request
+paths and response codes are unavailable. See the [supported protocols](#supported-protocols).
 
 ### Supported protocols
 

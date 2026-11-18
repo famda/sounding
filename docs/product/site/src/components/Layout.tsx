@@ -63,8 +63,10 @@ function Header() {
         <ThemeSelector className="relative z-10" />
         <Link
           href="https://github.com/famda/sounding"
+          target="_blank"
+          rel="noopener noreferrer"
           className="group"
-          aria-label="Sounding on GitHub"
+          aria-label="Sounding on GitHub (opens in a new tab)"
         >
           <GitHubIcon className="h-6 w-6 fill-slate-400 group-hover:fill-slate-500 dark:group-hover:fill-slate-300" />
         </Link>
@@ -88,7 +90,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="absolute inset-y-0 right-0 w-[50vw] bg-slate-50 dark:hidden" />
           <div className="absolute top-16 right-0 bottom-0 hidden h-12 w-px bg-linear-to-t from-slate-800 dark:block" />
           <div className="absolute top-28 right-0 bottom-0 hidden w-px bg-slate-800 dark:block" />
-          <div className="scrollbar-hidden sticky top-19 -ml-0.5 h-[calc(100vh-4.75rem)] w-52 overflow-x-hidden overflow-y-auto py-12 pr-5 pl-0.5 xl:w-56 xl:pr-6">
+          <div className="scrollbar-hidden sticky top-19 -ml-0.5 h-[calc(100vh-4.75rem)] w-60 overflow-x-hidden overflow-y-auto py-12 pr-5 pl-0.5 xl:w-64 xl:pr-6">
             <Navigation />
           </div>
         </div>

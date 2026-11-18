@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1310" height="356" viewBox="36 34 1310 356" fill="none" role="img" aria-labelledby="k8s-title k8s-desc">
+  <title id="k8s-title">Sounding on Kubernetes</title>
+  <desc id="k8s-desc">A cluster with two nodes. Each node runs your pods, with the Sounding agent inside each container, and an optional node agent for the node's network, disks and GPU. Your namespace spans both nodes. Every agent sends metrics to the database in the sounding namespace, which the dashboard reads. You open the dashboard in your browser through kubectl port-forward.</desc>
+  <defs>
+    <linearGradient id="k8s-database" x1="764" y1="192" x2="848" y2="262" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#183a50"/>
+      <stop offset="1" stop-color="#102531"/>
+    </linearGradient>
+    <marker id="k8s-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="m2 1 5 4-5 4" stroke="#2dd4bf" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="48" y="52" fill="#94a3b8" font-size="12" font-weight="600" letter-spacing="2">YOUR CLUSTER</text>
+
+    <rect x="48" y="76" width="592" height="136" rx="14" fill="#111b2b" stroke="#334155"/>
+    <g transform="translate(64 89)" color="#94a3b8">
+      <rect x="1" y="2" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.3"/>
+      <rect x="1" y="10" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M5 5h.01M5 13h.01M10 5h3M10 13h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <text x="92" y="103" fill="#cbd5e1" font-size="14" font-weight="600">Node 1</text>
+    <g transform="translate(64 120)">
+      <rect x=".5" y=".5" width="151" height="79" rx="10" fill="#123438" stroke="#1f5c59"/>
+      <circle cx="16" cy="22" r="3" fill="#2dd4bf"/>
+      <text x="28" y="27" fill="#99f6e4" font-size="14" font-weight="600">Node agent</text>
+      <text x="14" y="49" fill="#5eead4" font-size="12">Optional</text>
+      <text x="14" y="67" fill="#5eead4" font-size="12">Network, disks, GPU</text>
+    </g>
+    <g transform="translate(276 125)">
+      <rect x=".5" y=".5" width="145" height="69" rx="10" fill="#101c2c" stroke="#334155"/>
+      <path d="m14 18 7-4 7 4v8l-7 4-7-4zm0 0 7 4 7-4m-7 4v8" stroke="#94a3b8" stroke-width="1.3" stroke-linejoin="round"/>
+      <text x="39" y="27" fill="#e2e8f0" font-size="15" font-weight="600">Your pod</text>
+      <rect x="9" y="41" width="128" height="21" rx="5" fill="#123438"/>
+      <circle cx="21" cy="51.5" r="3" fill="#2dd4bf"/>
+      <text x="32" y="56" fill="#99f6e4" font-size="12" font-weight="500">Sounding agent</text>
+    </g>
+    <g transform="translate(434 125)">
+      <rect x=".5" y=".5" width="145" height="69" rx="10" fill="#101c2c" stroke="#334155"/>
+      <path d="m14 18 7-4 7 4v8l-7 4-7-4zm0 0 7 4 7-4m-7 4v8" stroke="#94a3b8" stroke-width="1.3" stroke-linejoin="round"/>
+      <text x="39" y="27" fill="#e2e8f0" font-size="15" font-weight="600">Your pod</text>
+      <rect x="9" y="41" width="128" height="21" rx="5" fill="#123438"/>
+      <circle cx="21" cy="51.5" r="3" fill="#2dd4bf"/>
+      <text x="32" y="56" fill="#99f6e4" font-size="12" font-weight="500">Sounding agent</text>
+    </g>
+
+    <rect x="48" y="232" width="592" height="136" rx="14" fill="#111b2b" stroke="#334155"/>
+    <g transform="translate(64 245)" color="#94a3b8">
+      <rect x="1" y="2" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.3"/>
+      <rect x="1" y="10" width="16" height="6" rx="2" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M5 5h.01M5 13h.01M10 5h3M10 13h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <text x="92" y="259" fill="#cbd5e1" font-size="14" font-weight="600">Node 2</text>
+    <g transform="translate(64 276)">
+      <rect x=".5" y=".5" width="151" height="79" rx="10" fill="#123438" stroke="#1f5c59"/>
+      <circle cx="16" cy="22" r="3" fill="#2dd4bf"/>
+      <text x="28" y="27" fill="#99f6e4" font-size="14" font-weight="600">Node agent</text>
+      <text x="14" y="49" fill="#5eead4" font-size="12">Optional</text>
+      <text x="14" y="67" fill="#5eead4" font-size="12">Network, disks, GPU</text>
+    </g>
+    <g transform="translate(276 281)">
+      <rect x=".5" y=".5" width="145" height="69" rx="10" fill="#101c2c" stroke="#334155"/>
+      <path d="m14 18 7-4 7 4v8l-7 4-7-4zm0 0 7 4 7-4m-7 4v8" stroke="#94a3b8" stroke-width="1.3" stroke-linejoin="round"/>
+      <text x="39" y="27" fill="#e2e8f0" font-size="15" font-weight="600">Your pod</text>
+      <rect x="9" y="41" width="128" height="21" rx="5" fill="#123438"/>
+      <circle cx="21" cy="51.5" r="3" fill="#2dd4bf"/>
+      <text x="32" y="56" fill="#99f6e4" font-size="12" font-weight="500">Sounding agent</text>
+    </g>
+    <g transform="translate(434 281)">
+      <rect x=".5" y=".5" width="145" height="69" rx="10" fill="#101c2c" stroke="#334155"/>
+      <path d="m14 18 7-4 7 4v8l-7 4-7-4zm0 0 7 4 7-4m-7 4v8" stroke="#94a3b8" stroke-width="1.3" stroke-linejoin="round"/>
+      <text x="39" y="27" fill="#e2e8f0" font-size="15" font-weight="600">Your pod</text>
+      <rect x="9" y="41" width="128" height="21" rx="5" fill="#123438"/>
+      <circle cx="21" cy="51.5" r="3" fill="#2dd4bf"/>
+      <text x="32" y="56" fill="#99f6e4" font-size="12" font-weight="500">Sounding agent</text>
+    </g>
+
+    
+    <rect x="246" y="64" width="364" height="316" rx="16" stroke="#2dd4bf" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="7 6"/>
+    <text x="266" y="104" fill="#99f6e4" font-size="13" font-weight="600">Your namespace</text>
+
+    <rect x="722" y="76" width="420" height="292" rx="14" stroke="#2dd4bf" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="7 6"/>
+    <text x="742" y="104" fill="#99f6e4" font-size="13" font-weight="600">Namespace sounding</text>
+
+    <path d="M764 196v52c0 8 19 14 42 14s42-6 42-14v-52" fill="url(#k8s-database)" stroke="#4b9ba7" stroke-width="1.5"/>
+    <path d="M764 214c0 8 19 14 42 14s42-6 42-14M764 232c0 8 19 14 42 14s42-6 42-14" stroke="#4b9ba7" stroke-width="1.5" stroke-opacity=".55"/>
+    <ellipse cx="806" cy="196" rx="42" ry="13" fill="#1c4051" stroke="#67c6cd" stroke-width="1.5"/>
+    <ellipse cx="806" cy="196" rx="28" ry="6" stroke="#67c6cd" stroke-opacity=".25"/>
+    <text x="806" y="288" text-anchor="middle" fill="#94a3b8" font-size="13">Database</text>
+
+    <g transform="translate(896 148.8) scale(0.6) translate(-862 -254)">
+      <rect x="862" y="254" width="370" height="244" rx="14" fill="#0c1421" stroke="#475569" stroke-width="1.5"/>
+      <path d="M863 294h368" stroke="#334155"/>
+      <image href="logo.svg" x="880" y="262" width="24" height="24"/>
+      <text x="910" y="279" fill="#e2e8f0" font-size="13" font-weight="600">Sounding</text>
+      <text x="984" y="279" fill="#94a3b8" font-size="12">/ All hosts</text>
+      <circle cx="1176" cy="274" r="3" fill="#2dd4bf"/>
+      <text x="1186" y="279" fill="#99f6e4" font-size="11">Live</text>
+      <g fill="#111e2d" stroke="#26374c">
+        <rect x="880" y="312" width="156" height="76" rx="7"/>
+        <rect x="1054" y="312" width="160" height="76" rx="7"/>
+        <rect x="880" y="404" width="156" height="76" rx="7"/>
+        <rect x="1054" y="404" width="160" height="76" rx="7"/>
+      </g>
+      <g fill="#cbd5e1" font-size="12" font-weight="600">
+        <text x="893" y="333">CPU</text>
+        <text x="1067" y="333">Memory</text>
+        <text x="893" y="425">Disk</text>
+        <text x="1067" y="425">Network</text>
+      </g>
+      <path d="m893 370 12-4 12 3 12-13 12 8 12-4 12 5 12-16 12 7 12-5 12 3 8-6" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round"/>
+      <rect x="1067" y="352" width="132" height="7" rx="3.5" fill="#26374c"/>
+      <rect x="1067" y="352" width="88" height="7" rx="3.5" fill="#38bdf8"/>
+      <rect x="1067" y="368" width="132" height="4" rx="2" fill="#26374c"/>
+      <rect x="1067" y="368" width="52" height="4" rx="2" fill="#2dd4bf"/>
+      <path d="m893 465 12-2 12 2 12-5 12 3 12-20 12 16 12-5 12 8 12-2 12 4 8-4" stroke="#2dd4bf" stroke-width="2" stroke-linejoin="round"/>
+      <path d="m1067 464 12-3 12 2 12-16 12 12 12-3 12 8 12-21 12 17 12-4 12 6 8-3" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round"/>
+    </g>
+    <text x="1007" y="317.2" text-anchor="middle" fill="#94a3b8" font-size="13">Dashboard</text>
+
+    <g stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M640 144h20q20 0 20 20v38q0 20 20 20h56" marker-end="url(#k8s-arrow)"/>
+      <path d="M640 300h20q20 0 20-20v-38q0-20 20-20"/>
+      <path d="M856 222h30" marker-end="url(#k8s-arrow)"/>
+      <path d="M1126 222h102" marker-end="url(#k8s-arrow)"/>
+    </g>
+    <circle cx="640" cy="144" r="4" fill="#2dd4bf"/>
+    <circle cx="640" cy="300" r="4" fill="#2dd4bf"/>
+    <text x="1190" y="212" text-anchor="middle" fill="#99f6e4" font-size="12">port-forward</text>
+
+    <rect x="1238" y="185" width="96" height="74" rx="8" fill="#101c2c" stroke="#334155"/>
+    <path d="M1238 201h96" stroke="#334155"/>
+    <circle cx="1249" cy="193" r="2.5" fill="#64748b"/>
+    <circle cx="1259" cy="193" r="2.5" fill="#64748b"/>
+    <circle cx="1269" cy="193" r="2.5" fill="#64748b"/>
+    <text x="1286" y="235" fill="#94a3b8" font-size="11" text-anchor="middle">localhost:8080</text>
+    <text x="1286" y="285" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="600">Your browser</text>
+  </g>
+</svg>

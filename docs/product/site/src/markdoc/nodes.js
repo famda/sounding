@@ -6,8 +6,15 @@ import { DocsLayout } from '@/components/DocsLayout'
 import { ZoomableImage } from '@/components/ZoomableImage'
 import { DocumentationTable } from '@/components/DocumentationTable'
 import { Fence } from '@/components/Fence'
+import { toLeadList } from '@/markdoc/lead-list.mjs'
 
 let documentSlugifyMap = new Map()
+
+const siteOrigin = process.env.DOCS_SITE_ORIGIN ?? 'https://famda.github.io'
+
+function isExternal(href) {
+  return typeof href === 'string' && /^https?:\/\//i.test(href) && !href.startsWith(`${siteOrigin}/`)
+}
 
 const nodes = {
   table: {
@@ -58,6 +65,31 @@ const nodes = {
         type: String,
         default: 'col',
       },
+    },
+  },
+  link: {
+    ...defaultNodes.link,
+    transform(node, config) {
+      const attributes = node.transformAttributes(config)
+      const children = node.transformChildren(config)
+      if (!isExternal(attributes.href)) return new Tag('a', attributes, children)
+      // Readers keep the documentation open while they follow a link elsewhere.
+      return new Tag('a', { ...attributes, target: '_blank', rel: 'noopener noreferrer' }, [
+        ...children,
+        new Tag('span', { class: 'sr-only' }, [' (opens in a new tab)']),
+      ])
+    },
+  },
+  list: {
+    ...defaultNodes.list,
+    transform(node, config) {
+      return toLeadList(
+        new Tag(
+          node.attributes.ordered ? 'ol' : 'ul',
+          node.transformAttributes(config),
+          node.transformChildren(config),
+        ),
+      )
     },
   },
   fence: {

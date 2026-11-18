@@ -16,7 +16,7 @@ public static class ContainerEndpoints
 {
     public static RouteGroupBuilder MapContainerEndpoints(this RouteGroupBuilder api)
     {
-        var containers = api.MapGroup("/containers").WithTags("Containers");
+        var containers = api.MapGroup("/containers").WithTags("Containers").DecodeSlashes("containerId");
 
         containers.MapGet("/", static async (string? hostId, [ContainerStatuses] string? status, [ContainerSorts] string? sort, string? search, int? page, int? pageSize, IMessageBus bus, CancellationToken cancellationToken) =>
                 (await bus.InvokeAsync<Result<PaginatedList<ContainerOverview>>>(new GetContainersQuery(hostId, status, sort, page, pageSize, search), cancellationToken)).ToHttpResult())

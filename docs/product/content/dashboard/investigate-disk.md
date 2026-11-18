@@ -14,7 +14,7 @@ A slow disk and a full disk are different problems. The Disk page helps with bot
 3. Compare with the read and write throughput, and **Disk operations**:
    - High pressure with **little data** often means many small requests. Disks are limited in requests per second as
      well as in bytes.
-   - High pressure with **a lot of data** means the workload needs a faster disk.
+   - If pressure and throughput are both high, compare device latency and check which processes account for the I/O.
 4. On a host, **Devices** shows which disk the load lands on. **Busy** close to 100% means it was active almost
    continuously, not necessarily that it reached its maximum throughput. Compare it with latency and I/O pressure.
 5. **Processes by disk I/O** shows which processes read and write the most.

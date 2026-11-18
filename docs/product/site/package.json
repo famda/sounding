@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "node --test scripts/*.test.mjs",
     "build": "node scripts/prepare.mjs && next build --webpack && node scripts/publish.mjs && node scripts/verify.mjs"
   },
   "browserslist": "defaults, not ie <= 11",

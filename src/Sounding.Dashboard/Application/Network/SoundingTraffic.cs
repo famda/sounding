@@ -43,6 +43,8 @@ public sealed class SoundingDatabase(string? connectionString)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(h => h.Split(':')[0].ToLowerInvariant())];
 
+    // Only lookups: a connection to that host can be the application's own (another database on the same server), so
+    // traffic counts as Sounding's only when its process is.
     public bool IsOwnLookup(DnsLookup lookup) => _hosts.Contains(lookup.Name.TrimEnd('.').ToLowerInvariant());
 }
 

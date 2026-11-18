@@ -22,7 +22,14 @@ public sealed record NetworkActivity(
     EphemeralPorts? Ephemeral = null,
     IReadOnlyList<string>? Networks = null,
     UntrackedTraffic? Untracked = null,
-    IReadOnlyList<Peer>? Peers = null);
+    IReadOnlyList<Peer>? Peers = null,
+    // Networks whose addresses are unique across hosts (a Kubernetes cluster's pod and service ranges): a peer in
+    // one of them is matched to the container that owns its address on any host.
+    IReadOnlyList<string>? ClusterNetworks = null,
+    // The Kubernetes namespace and cluster DNS domain this container resolves names in: what a short Service name it
+    // called ("web") stands for. They name the Service; they do not tell which pods answer it.
+    string? Namespace = null,
+    string? ClusterDomain = null);
 
 // Who this container talked to over the retention period, one entry per peer, service port and direction, however
 // many connections that took: what the map draws for any time range. Internet peers are one address, "*".

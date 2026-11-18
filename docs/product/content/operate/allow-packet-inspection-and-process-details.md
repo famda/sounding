@@ -3,8 +3,9 @@ title: Allow packet inspection and process details
 description: What Sounding needs to read network traffic and other users' processes, and how to allow it.
 ---
 
-Most of what Sounding shows needs no extra permissions. Two features need more than some platforms allow by default:
-**reading network traffic**, and **seeing processes run by other users**.
+If **Network** shows **Packet capture off**, check the network traffic permission below. If the process table
+shows missing details for programs running as another user, check the process permissions. Most figures are
+available with the default permissions.
 
 ## Network traffic
 
@@ -31,6 +32,11 @@ This happens when:
 
 - **The container runs as a non-root user with `no-new-privileges`.** Sounding's traffic reader can't get its permission
   then. You can keep that security setting; open connections and traffic totals remain available without packet details.
+
+- **On Kubernetes, the namespace enforces the restricted Pod Security Standard.** It requires every capability to be
+  dropped and doesn't allow `NET_RAW` back. You can keep it: connections and traffic totals remain. Packet details need
+  the **baseline** standard, which allows `NET_RAW`, on the workload's namespace. See
+  [Pod Security Standards](../deployment/kubernetes.md#pod-security-standards).
 
 ## Other users' processes
 

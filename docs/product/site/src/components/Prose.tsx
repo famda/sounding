@@ -23,6 +23,8 @@ export function Prose<T extends React.ElementType = 'div'>({
         'prose-img:border prose-img:border-slate-200 dark:prose-img:border-slate-700 [&_img[src$=svg_i]]:border-0',
         // pre
         'prose-pre:rounded-xl prose-pre:bg-slate-900 prose-pre:shadow-lg dark:prose-pre:bg-slate-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-slate-300/10',
+        // inline code: long setting names wrap rather than widen the page on a phone
+        '[&_:not(pre)>code]:wrap-anywhere',
         // hr
         'dark:prose-hr:border-slate-800',
       )}

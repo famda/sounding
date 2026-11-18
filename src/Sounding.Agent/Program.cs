@@ -8,12 +8,15 @@ builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
 builder.Logging.AddConsole();
 
 builder.Services.Configure<AgentOptions>(builder.Configuration);
+builder.Services.PostConfigure<AgentOptions>(o => o.CgroupPath = CgroupLocation.Resolve(o.CgroupPath, o.ProcPath));
 
 builder.Services.AddSingleton(sp => HostIdentity.Create(sp.GetRequiredService<IOptions<AgentOptions>>().Value));
 builder.Services.AddSingleton(_ =>
 {
     var database = new NpgsqlSlimDataSourceBuilder(builder.Configuration["CONNECTION_STRING"]
         ?? throw new InvalidOperationException("SOUNDING_CONNECTION_STRING is not configured"));
+    // Managed PostgreSQL services require TLS; with the default SSL Mode (Prefer) a server without it still works.
+    database.EnableTransportSecurity();
     // The same few statements run every tick: prepared once, then only their parameters are sent.
     if (database.ConnectionStringBuilder.MaxAutoPrepare == 0)
     {
@@ -44,4 +47,10 @@ builder.Services.AddSingleton<ExitReport>();
 
 builder.Services.AddHostedService<AgentService>();
 
-builder.Build().Run();
+var app = builder.Build();
+if (app.Services.GetRequiredService<HostIdentity>().Warning is { } identityWarning)
+{
+    app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Sounding.Agent").LogWarning("{Warning}", identityWarning);
+}
+
+app.Run();

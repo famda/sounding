@@ -25,8 +25,8 @@ may stop collecting packets before the requested duration ends.
 When the capture is done, select **Open** to read its packets in the dashboard, or **Download .pcap** to open the file
 in Wireshark or another packet analyser.
 
-In the dashboard, select a packet to see its details and its first bytes. In this capture, the selected packet is an
-HTTP request, readable as text: this is why captures need care.
+Select a packet to inspect its first bytes. In the HTTP request shown below, look for the request method at the
+start of the captured text.
 
 ![A capture opened in the dashboard, with an HTTP request selected](../../assets/packet-capture.png)
 

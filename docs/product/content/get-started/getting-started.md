@@ -1,164 +1,87 @@
 ---
 title: Getting started
-description: Bring your first application into Sounding, open its live figures, and make your first check.
+description: Choose where to start with Sounding, see what every setup involves, and check that yours can run it.
 ---
 
-Start with one application you already run. Adding the agent takes **two lines in its Dockerfile** and **one
-environment variable**. This guide also starts a dashboard and PostgreSQL beside it, so you can go from an
-application to live figures in your browser.
+Every Sounding setup has the same three parts: the agent inside each container you monitor, a PostgreSQL database
+they all report to, and the dashboard that shows what they report. This page helps you choose where to start, and
+lists what your containers and machines need.
 
-There is no host agent to install, no sidecar to deploy, and no Docker socket to mount.
+## Choose where to start
 
-**Just exploring?** [Try the standalone demo](full-demo.md) for a ready-made application instead.
+Choose a sample or go directly to the setup guide for your own application.
 
-**You need:**
+| Your starting point | Guide |
+|---|---|
+| Sample Compose application | [Try the Docker demo](docker-demo.md) with a web server and a client. |
+| Sample Kubernetes workload | [Try the Kubernetes demo](kubernetes-demo.md) on Docker Desktop’s cluster. |
+| Your Compose service | [Set up Sounding with Docker Compose](../deployment/docker-compose.md) |
+| Your Kubernetes workload | [Set up Sounding on Kubernetes](../deployment/kubernetes.md) |
 
-- An application that already builds and runs in Docker Compose.
-- Docker Compose v2 and x86-64 Linux containers, on Linux or Docker Desktop. See
-  [requirements](../reference/requirements.md).
+## What every setup involves
 
-## 1. Add the agent to your image
+1. **Run the agent inside your container.** In an image you build, copy in the agent and start your application
+   through its launcher. On Kubernetes, an init container can also supply the agent if cluster policy permits.
 
-Copy `/opt/sounding` into your `Dockerfile` and start your application through `/opt/sounding/run`. Keep your
-existing build steps and dependencies; the examples below show where Sounding fits, not a replacement application.
+   ```dockerfile title="Dockerfile"
+   COPY --from=famda/sounding:agent-latest /opt/sounding /opt/sounding
+   ENTRYPOINT ["/opt/sounding/run", "node", "server.js"]
+   ```
 
-**If your Dockerfile uses `CMD`** (without an `ENTRYPOINT`), add `ENTRYPOINT ["/opt/sounding/run"]` above it:
+2. **Point it at the database.** One setting, `SOUNDING_CONNECTION_STRING`, names the PostgreSQL database. Every
+   monitored container and the dashboard use the same one.
+3. **Open the dashboard.** Within a few seconds, your host and container appear with live figures.
 
-```dockerfile title="Dockerfile"
-FROM node:22-alpine
-WORKDIR /app
-COPY . .
-COPY --from=famda/sounding:agent-latest /opt/sounding /opt/sounding
-ENTRYPOINT ["/opt/sounding/run"]
-CMD ["node", "server.js"]
-```
+Each container you want to monitor needs the agent; adding it to one doesn't monitor the others. When the first one
+reports, [monitor more containers and hosts](monitor-containers-and-hosts.md) the same way.
 
-**If your Dockerfile already sets `ENTRYPOINT`**, put `"/opt/sounding/run"` at the start of the list. For example, if it
-currently starts `dotnet MyApp.dll`, keep your existing build stages and runtime instructions, and end the runtime
-stage with:
+## Requirements
 
-```dockerfile title="Dockerfile"
-COPY --from=famda/sounding:agent-latest /opt/sounding /opt/sounding
-ENTRYPOINT ["/opt/sounding/run", "dotnet", "MyApp.dll"]
-```
+Check these before you add the agent to your images.
 
-> [!TIP]
-> Wrapping a third-party image (such as `redis` or `nginx`) whose entrypoint isn't in your `Dockerfile`? Pull and
-> inspect it first:
->
-> ```sh
-> docker pull redis:8.2
-> ```
->
-> ```sh
-> docker inspect --format '{{json .Config.Entrypoint}} {{json .Config.Cmd}}' redis:8.2
-> ```
->
-> Put `/opt/sounding/run` before the original entrypoint, and keep the original `CMD`. This preserves the image's
-> startup script as well as the application it starts.
+### Containers
 
-Your application keeps its user, arguments, signals, exit code, and logs—and keeps running normally even if the
-database is unreachable.
+| Requirement | Details |
+|---|---|
+| Processor | **x86-64** (amd64). ARM containers aren't supported yet, including on Apple silicon Macs. |
+| Operating system | **Linux** containers, with **cgroup v2**, the default on current Linux distributions and Docker Desktop. |
+| Base image | Any Linux image: Debian, Ubuntu, Red Hat-based, Alpine, BusyBox, or distroless. The agent brings everything it needs. |
+| Runtime | **Docker Engine** with Docker Compose v2 on Linux, **Docker Desktop**, or **Kubernetes** with containerd. |
 
-## 2. Connect your application and start the dashboard
+On Docker Desktop, the host Sounding shows is Docker's Linux virtual machine, not your computer. It has no temperature
+sensors.
 
-Add a database password to `.env` next to your `compose.yaml` (use letters and numbers, and keep `.env` out of version
-control):
+On Kubernetes, see [what Sounding doesn't see](../concepts/kubernetes.md#what-sounding-doesnt-see).
 
-```dotenv title=".env"
-SOUNDING_DB_PASSWORD=replacewithastrongpassword
-```
+Podman and other container platforms aren't supported yet.
 
-In `compose.yaml`, pass `SOUNDING_CONNECTION_STRING` to your service (replace `your-app` with your service name,
-keeping its existing settings), and add the `dashboard` and `db` services:
+### Database
 
-```yaml title="compose.yaml"
-services:
-  your-app:
-    build: .
-    # Keep your existing ports, volumes, and other settings.
-    environment:
-      SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding;Username=sounding;Password=${SOUNDING_DB_PASSWORD}"
-      SOUNDING_HOST_DISPLAY_NAME: my-host
+**PostgreSQL 14 or later**, reachable from every monitored container and the dashboard. The setup guides start one for
+you; to use your own, see [set up the database](../operate/set-up-the-database.md).
 
-  dashboard:
-    image: famda/sounding:dashboard-latest
-    ports:
-      - "127.0.0.1:8080:8080"
-    environment:
-      SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding;Username=sounding;Password=${SOUNDING_DB_PASSWORD}"
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
+### Browser
 
-  db:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_DB: sounding
-      POSTGRES_USER: sounding
-      POSTGRES_PASSWORD: ${SOUNDING_DB_PASSWORD}
-    volumes:
-      - sounding-db:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sounding -d sounding"]
-      interval: 2s
-      timeout: 3s
-      retries: 30
-    restart: unless-stopped
+A current version of Chrome, Edge, Firefox, or Safari.
 
-volumes:
-  sounding-db:
-```
+### GPUs
 
-`SOUNDING_HOST_DISPLAY_NAME` sets the readable name shown for this machine. If `your-app` defines custom `networks`,
-include `default` or attach `db` to the same network so the agent can reach it.
+| To see | You need |
+|---|---|
+| The host's GPU cards | An **NVIDIA** GPU, its driver, and the **NVIDIA Container Toolkit**, with GPU access given to one container with Sounding. |
+| Each container's GPU use | CUDA programs started through Sounding's launcher. Graphics work (OpenGL, Vulkan) isn't measured per container. Profilers that use the same CUDA interface, such as NVIDIA Nsight, can't run at the same time. |
 
-> [!TIP]
-> **Already have PostgreSQL?** Skip the `db` service and `sounding-db` volume, and remove the dashboard's
-> `depends_on` block. Set `SOUNDING_CONNECTION_STRING` on `your-app` and `dashboard` to your database's connection
-> string. Sounding creates its tables automatically on first connect. Inside a container, `localhost` is the
-> container itself, so use a reachable host name. See [set up the database](../operate/set-up-the-database.md).
+See [monitor NVIDIA GPUs](../dashboard/monitor-gpus.md).
 
-## 3. Build and open the dashboard
+### Optional access
 
-Start your stack:
+Most figures need no extra permissions. These features need more:
 
-```sh
-docker compose up -d --build
-```
+| Feature | Needs | See |
+|---|---|---|
+| The host's network | The host's `/proc` or `/sys` mounted read-only. | [Show the host's network, disks, and GPUs](../operate/show-host-network-disk-and-gpu.md) |
+| Other disks of the host | A folder of each disk mounted read-only. | [Show the host's network, disks, and GPUs](../operate/show-host-network-disk-and-gpu.md) |
+| Connections, requests, DNS, and packet captures | The `NET_RAW` capability, which Docker grants by default. | [Allow packet inspection and process details](../operate/allow-packet-inspection-and-process-details.md) |
+| Details of other users' processes | Running as `root`, with the `SYS_PTRACE` capability. | [Allow packet inspection and process details](../operate/allow-packet-inspection-and-process-details.md) |
 
-Open <http://localhost:8080>. Your host and container appear within a few seconds; with a single host, the dashboard
-opens it directly.
-
-**Check that it is working:**
-
-1. Find the host named **my-host**, as set in the Compose example.
-2. Select your container and look for live CPU and memory figures.
-3. Check that the header says **Live**. Wait a few seconds for the charts to build up.
-
-On Docker Desktop, the host is Docker's Linux virtual machine, not your Windows or macOS machine.
-
-### Make your first check
-
-Use the application as you normally would: send a request or run a small job. Open the container's **CPU** or
-**Memory** page, choose **1m**, and hover over the chart to see its figures at that moment.
-
-You now have a starting point for a real question: is memory growing, is the container reaching a CPU limit, or
-which process is busy? [Find your way around the dashboard](../dashboard/find-your-way-around.md) explains how to
-follow those clues.
-
-If your container doesn't appear, start with
-[My container doesn't appear](../troubleshooting/troubleshoot.md#my-container-doesnt-appear). If it appears but a
-chart says **Not available**, check [what needs extra access](../reference/requirements.md#optional-access);
-missing data isn't a zero reading.
-
-> [!WARNING]
-> The dashboard has no sign-in. Keep it on `127.0.0.1` as above, or put it behind your own authentication, before others
-> can reach it. See [secure Sounding](../operate/secure-sounding.md).
-
-## Next steps
-
-- [Monitor more containers and hosts](monitor-more-containers.md)
-- [Find your way around the dashboard](../dashboard/find-your-way-around.md)
-- [Show the host's network, disks, and GPUs](../operate/show-host-network-disk-and-gpu.md)
+Without them, the rest of Sounding works, and the dashboard shows **Not available** where data is missing.

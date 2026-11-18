@@ -81,18 +81,25 @@ docker compose exec chat-model ollama pull qwen3.5:9b
 > [!NOTE]
 > `qwen3.5:9b` is about 7 GB and runs well on a card with 12 GB of memory. Bigger models investigate more reliably
 > but need more memory.
+>
+> To try another model, pick one from [Ollama](https://ollama.com)'s
+> [models that support tools](https://ollama.com/search?c=tools) and pull it the same way, with its name in place of
+> `qwen3.5:9b`.
 
 ## 3. Ask a question
 
-Open <http://localhost:3000>, select the model you downloaded, and ask:
+Open <http://localhost:3000> and select the model you downloaded. Pick a container from your Sounding dashboard
+and use its name in your question. For example:
 
-> Is anything wrong right now? Use Sounding and show the evidence for the most important findings.
+> Use Sounding to check the memory limit for web.
 
-The chat shows each tool the assistant uses, such as `sounding_diagnose`. Open a tool result to see the data behind
+Open the same container’s **Memory** page and compare the configured limit with the assistant’s answer.
+
+The chat shows each tool the assistant uses to answer your question. Open a tool result to see the data behind
 the answer. If the assistant answers without calling a tool, it has not checked your containers; see the table
 below.
 
-For a follow-up, pick a container from the answer: "Why is worker restarting?" or "What changed for web in the last
+For a follow-up, ask about activity over time: "Why is worker restarting?" or "What changed for web in the last
 30 minutes?" Use the names from your own dashboard.
 
 Open WebUI doesn't show Sounding's [prompts](what-sounding-provides.md#prompts): ask in your own words.

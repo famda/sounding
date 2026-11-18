@@ -3,8 +3,8 @@ title: Monitor NVIDIA GPUs
 description: See how busy each NVIDIA card is, and how much of it each container's programs use.
 ---
 
-GPU monitoring is optional and applies to NVIDIA GPUs. The GPU page answers two questions: **how busy is each card**,
-and **how much of it does each container use**. 
+The host’s GPU page shows activity on each NVIDIA card. A container’s GPU page shows the CUDA activity Sounding
+can attribute to its programs.
 
 ![The GPU page of a host](../../assets/host-gpu.png)
 
@@ -33,11 +33,35 @@ Sounding shows a host's GPUs when one of its containers with Sounding has access
 3. Open the host's **GPU** page. Each card appears under **Cards**.
 
 Each container's share appears on its own GPU page when it runs CUDA programs, as long as they start through Sounding's
-launcher, which is the case when you've [added Sounding to the image](../get-started/getting-started.md).
+launcher, which is the case when you've [added Sounding to the image](../deployment/docker-compose.md).
 
 > [!NOTE]
 > Sounding measures CUDA programs. Graphics work, such as OpenGL or Vulkan, isn't counted per container, though it shows
 > in the card's own figures.
+
+### On Kubernetes
+
+The [node agent](../deployment/kubernetes.md#5-add-the-node-agent-optional) reports a node's NVIDIA GPUs when it can
+run `nvidia-smi`. Give it GPU access the way your cluster provides it, for example with NVIDIA's GPU Operator.
+
+**On Docker Desktop for Windows**, the nodes have no GPU driver, so the Kubernetes sample copies it in. From the
+sample's folder:
+
+1. Copy the driver onto each node (PowerShell 7.4 or later):
+
+   ```powershell
+   pwsh -ExecutionPolicy Bypass -File gpu/install-gpu-driver.ps1
+   ```
+
+2. Replace the node agent with the one that uses the GPU:
+
+   ```shell
+   kubectl apply -f gpu/node-agent.yaml
+   ```
+
+Each host's **GPU** page then shows the card. This node agent runs **privileged**, because Docker Desktop has no other
+way to give a pod the GPU. Use it on your own computer only, and run the script again after a driver update or a
+cluster reset.
 
 ## Read the GPU page
 

@@ -98,7 +98,8 @@ public static class TraceFailureHandler
                 }
 
                 // A container that no longer reports has no address on record, so a call to it is only known by the
-                // name the caller used: matched to a container on the caller's own host.
+                // name the caller used: matched to a container on the caller's own host. A Kubernetes Service name is
+                // matched to none (see PeerDirectory.NameMatches).
                 var callee = edge.ToContainerId is { } id ? containers.GetValueOrDefault(id).Container
                     : PeerDirectory.Named(callerHost.Containers, static c => c.Name, edge.To);
                 if (callee is { Status: ContainerStatus.Stopped } stopped)

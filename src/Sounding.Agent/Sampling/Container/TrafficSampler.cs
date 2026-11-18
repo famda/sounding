@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace Sounding.Agent.Sampling;
 
-public sealed class TrafficSampler(IOptions<AgentOptions> options, ILogger<TrafficSampler> logger) : IDisposable
+public sealed class TrafficSampler(IOptions<AgentOptions> options, HostIdentity identity, ILogger<TrafficSampler> logger) : IDisposable
 {
     private const int MaxListed = 200;
     private const int MaxMetadata = 8192;
@@ -20,6 +20,7 @@ public sealed class TrafficSampler(IOptions<AgentOptions> options, ILogger<Traff
     private static readonly TimeSpan RetryCapture = TimeSpan.FromMinutes(1);
 
     private readonly string _helperPath = options.Value.NetMeterPath;
+    private readonly string _clusterDomain = options.Value.ClusterDomain.Trim().TrimEnd('.');
     private readonly string _procPath = options.Value.ProcPath;
     private readonly string _procsPath = Path.Combine(options.Value.CgroupPath, "cgroup.procs");
     private string[] _scannedPids = [];
@@ -27,7 +28,7 @@ public sealed class TrafficSampler(IOptions<AgentOptions> options, ILogger<Traff
     private Dictionary<long, int> _socketPids = [];
     private readonly Lock _lock = new();
     private readonly DateTime _started = DateTime.UtcNow;
-    private readonly LocalNetwork _local = new(options.Value.ProcPath);
+    private readonly LocalNetwork _local = new(options.Value.ProcPath, options.Value.ClusterNetworks);
     private readonly PublishedPorts _published = new(options.Value.ProcPath, options.Value.HostProcPath);
     private readonly RequestTracker _requests = new();
     private readonly List<AgentEvent> _events = [];
@@ -444,7 +445,7 @@ public sealed class TrafficSampler(IOptions<AgentOptions> options, ILogger<Traff
             var from = clients.GetValueOrDefault((s.Protocol, s.LocalPort)) ?? [];
             listening.Add(new Listener(s.Protocol, s.LocalAddress, s.LocalPort, IsNew(firstSeen, now),
                 owned ? owner.Pid : null, owned ? owner.Name : null, UserNames.Of(s.Uid), s.Protocol == "tcp" ? (int)s.RxQueue : null,
-                from.Count, from.Count(IsInternet), from.Count(a => _local.Zone(a) == "host"), _published.Of(s.Protocol, s.LocalPort)));
+                from.Count, from.Count(_local.IsInternet), from.Count(a => _local.Zone(a) == "host"), _published.Of(s.Protocol, s.LocalPort)));
         }
 
         PortsByPid = listening.Where(l => l.Pid is not null).GroupBy(l => l.Pid!.Value)
@@ -490,7 +491,10 @@ public sealed class TrafficSampler(IOptions<AgentOptions> options, ILogger<Traff
             _peers.Select(p => new Peer(
                 p.Key.Protocol, p.Key.Remote, p.Value.Internet ? null : _names.GetValueOrDefault(p.Key.Remote), p.Key.Port, p.Key.Inbound,
                 p.Value.Sure, p.Value.Zone, p.Value.Internet, p.Value.Bytes, p.Value.RateAt == now ? p.Value.Rate : 0,
-                Age(p.Value.FirstSeen, now), Age(p.Value.LastSeen, now))).ToList());
+                Age(p.Value.FirstSeen, now), Age(p.Value.LastSeen, now))).ToList(),
+            _local.ClusterNetworks,
+            _local.ClusterNetworks is null ? null : identity.Namespace,
+            _local.ClusterNetworks is null ? null : _clusterDomain);
     }
 
     private string? ProcessOf(RequestConnection connection) =>
@@ -524,7 +528,7 @@ public sealed class TrafficSampler(IOptions<AgentOptions> options, ILogger<Traff
             _flows[key] = flow = new Flow
             {
                 Protocol = protocol, LocalPort = localPort, Remote = remote, RemotePort = remotePort, FirstSeen = now,
-                Internet = IsInternet(remote), RemoteV4 = LocalNetwork.V4(remote),
+                Internet = _local.IsInternet(remote), RemoteV4 = LocalNetwork.V4(remote),
             };
             if (_destinations.TryAdd(destination, now) && flow.Internet && IsNew(now, now))
             {

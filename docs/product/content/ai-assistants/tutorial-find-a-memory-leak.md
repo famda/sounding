@@ -1,16 +1,14 @@
 ---
 title: "Tutorial: find a memory leak"
-description: Watch a worker grow, hit its memory limit and restart. Ask a local assistant to explain the evidence, then schedule a morning check.
+description: Watch a worker grow, hit its memory limit and restart. Ask a local assistant to explain the evidence, and optionally schedule a morning check.
 ---
 
-A restart makes memory use fall. It doesn't fix a leak.
+Add a worker with a 128 MiB memory limit to the [Docker demo](../get-started/docker-demo.md). The worker keeps every
+job in memory until it hits the limit and restarts. Use a local assistant to:
 
-In this tutorial, you'll add a worker to the [standalone demo](../get-started/full-demo.md) that keeps every job in
-memory. It grows, hits its limit, and starts again. Then you'll use a local AI assistant to:
-
-1. Investigate the restarts using Sounding's measurements.
+1. Compare the worker’s restart history with its process memory trend.
 2. Separate evidence of memory exhaustion from a guess about the code.
-3. Set up a morning check in Open WebUI so you can follow the same container over time.
+3. Optionally, set up a morning check in Open WebUI so you can follow the same container over time.
 
 The model runs on your machine; you don't need a hosted AI account.
 
@@ -27,7 +25,7 @@ The model runs on your machine; you don't need a hosted AI account.
 ## 1. Add the worker and the assistant
 
 Create the demo's `.env` and `compose.yaml`, as in step 1 of
-[try a standalone demo](../get-started/full-demo.md#1-create-the-demo). Then add these services under `services:`:
+[try the Docker demo](../get-started/docker-demo.md#1-create-the-demo). Then add these services under `services:`:
 
 ```yaml title="compose.yaml"
   worker:
@@ -129,7 +127,7 @@ the leaking line of code. In your own application, use them to choose where to p
 
 ## 4. See the morning check
 
-Once you understand the restarts, ask in the same chat:
+If you want a recurring report, ask in the same chat:
 
 > Check the worker every morning at 8:00 and give me a short report.
 

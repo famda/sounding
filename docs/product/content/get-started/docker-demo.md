@@ -1,5 +1,5 @@
 ---
-title: Try a standalone demo
+title: Try the Docker demo
 description: Watch a client call a web server, follow the traffic in Sounding, then stop it and see what changes.
 ---
 
@@ -10,7 +10,7 @@ You'll find the containers, follow a request from client to server, then stop th
 change. The example includes its own dashboard and PostgreSQL database; no application code or GPU is needed.
 
 Ready to monitor your own application instead? Go straight to
-[add Sounding to your application](getting-started.md).
+[add Sounding to your application](../deployment/docker-compose.md).
 
 **You need:** Docker Compose 2.17 or later and x86-64 Linux containers, on Linux or Docker Desktop.
 
@@ -32,6 +32,9 @@ Save this as `compose.yaml` beside the `.env` file:
 ```yaml title="compose.yaml"
 name: sounding-demo
 
+x-sounding: &sounding
+  SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding;Username=sounding;Password=${SOUNDING_DB_PASSWORD}"
+
 services:
   db:
     image: postgres:18-alpine
@@ -51,7 +54,7 @@ services:
     image: famda/sounding:dashboard-latest
     ports: ["127.0.0.1:8080:8080"]
     environment:
-      SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding;Username=sounding;Password=${SOUNDING_DB_PASSWORD}"
+      <<: *sounding
     depends_on:
       db: { condition: service_healthy }
 
@@ -63,7 +66,7 @@ services:
         ENTRYPOINT ["/opt/sounding/run", "/docker-entrypoint.sh"]
         CMD ["nginx", "-g", "daemon off;"]
     environment:
-      SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding;Username=sounding;Password=${SOUNDING_DB_PASSWORD}"
+      <<: *sounding
       SOUNDING_HOST_DISPLAY_NAME: demo-host
 
   client:
@@ -74,7 +77,7 @@ services:
         ENTRYPOINT ["/opt/sounding/run"]
         CMD ["sh", "-c", "while true; do wget -q -O /dev/null http://web/; sleep 2; done"]
     environment:
-      SOUNDING_CONNECTION_STRING: "Host=db;Database=sounding;Username=sounding;Password=${SOUNDING_DB_PASSWORD}"
+      <<: *sounding
       SOUNDING_HOST_DISPLAY_NAME: demo-host
 
 volumes:
@@ -126,8 +129,8 @@ From the demo folder, stop only the request generator:
 docker compose stop client
 ```
 
-Keep the dashboard open on **web**. Its recent request figures cover the last minute, so let that window move
-past the last client request. New calls from the client stop; the earlier traffic stays in the charts.
+Keep **web** open in the dashboard. Once the last client request leaves the one-minute window, **Requests** stops showing calls
+from the client. Earlier traffic remains in the chart.
 
 Start the client again and watch calls resume:
 
@@ -135,7 +138,6 @@ Start the client again and watch calls resume:
 docker compose start client
 ```
 
-You've now followed a change you caused, rather than just looked at a busy chart.
 [Find your way around the dashboard](../dashboard/find-your-way-around.md) shows how to follow the same clues in
 your own application.
 
@@ -158,6 +160,6 @@ To keep the database for another run, leave out `--volumes`.
 
 ## Next steps
 
-- [Add Sounding to your application](getting-started.md)
+- [Add Sounding to your application](../deployment/docker-compose.md)
 - [Find your way around the dashboard](../dashboard/find-your-way-around.md)
 - [Find a memory leak with an AI assistant](../ai-assistants/tutorial-find-a-memory-leak.md)

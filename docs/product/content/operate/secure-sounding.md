@@ -3,25 +3,26 @@ title: Secure Sounding
 description: Protect the dashboard and the database, and understand what Sounding collects.
 ---
 
-Sounding shows a lot about your systems, and lets its users record network traffic. Treat the dashboard and its
-database as sensitive.
+The dashboard has no built-in sign-in. Anyone who can reach it can view monitoring data and start packet captures.
 
 ## Protect the dashboard
 
 > [!WARNING]
-> The dashboard has no sign-in. Anyone who can reach it can see everything, and record packet captures. The same goes
-> for the [REST API](../reference/api.md) and for [AI assistants](../ai-assistants/connect-an-ai-assistant.md), which
-> use the dashboard's port.
+> Protect the dashboard’s port when you enable remote access. The [REST API](../reference/api.md) and the
+> [read-only MCP tools](../ai-assistants/connect-an-ai-assistant.md) share that port.
 
 - **Keep it private.** Publish it on `127.0.0.1`, as in the examples, and reach it over SSH or a VPN.
 - **Or put it behind authentication.** Place it behind a reverse proxy that signs users in and encrypts the connection.
 - **Never expose it directly to the internet.**
+- **On Kubernetes, block it from other pods** with a NetworkPolicy, and open it with `kubectl port-forward`, or
+  publish it through an authenticating proxy. See [security on Kubernetes](../deployment/kubernetes.md#security). The
+  policy only works where the cluster enforces NetworkPolicies; check that yours does.
 
 ## Protect the database
 
 - Allow only the agents, the dashboard, and your administrators to connect, with strong credentials and firewall rules.
 - Keep connection strings out of source code and screenshots.
-- The agents connect without encryption. See [protect the connection](set-up-the-database.md#protect-the-connection).
+- Require encryption: see [protect the connection](set-up-the-database.md#protect-the-connection).
 
 ## Know what Sounding collects
 

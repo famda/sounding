@@ -1,0 +1,126 @@
+# Sounding: PostgreSQL and the dashboard. For your own PostgreSQL, leave out the objects marked "Bundled PostgreSQL".
+#
+# Every pod here runs under the restricted Pod Security Standard. The images use moving -latest tags that are pulled
+# again on every restart; for production, pin dashboard-<version> and agent-<version> and set imagePullPolicy to
+# IfNotPresent, so you choose when to upgrade.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sounding
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Bundled PostgreSQL. Needs a default StorageClass that provisions the 5 GiB volume; without one, db-0 stays Pending.
+# One instance with no backups: for production, use a managed or replicated PostgreSQL you back up.
+apiVersion: v1
+kind: Service
+metadata: { name: db, namespace: sounding }
+spec:
+  selector: { app: db }
+  ports: [{ port: 5432 }]
+---
+# Bundled PostgreSQL.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: db, namespace: sounding }
+spec:
+  serviceName: db
+  selector: { matchLabels: { app: db } }
+  template:
+    metadata: { labels: { app: db } }
+    spec:
+      automountServiceAccountToken: false
+      # 70 is the postgres user of the Alpine image.
+      securityContext: { runAsUser: 70, runAsGroup: 70, fsGroup: 70, runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: postgres
+          image: postgres:18-alpine
+          env:
+            - { name: POSTGRES_DB, value: sounding }
+            - { name: POSTGRES_USER, value: sounding }
+            - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: sounding-db, key: password } } }
+          ports: [{ containerPort: 5432 }]
+          readinessProbe: { exec: { command: [pg_isready, -U, sounding, -d, sounding] }, periodSeconds: 5 }
+          livenessProbe: { exec: { command: [pg_isready, -U, sounding, -d, sounding] }, periodSeconds: 10, failureThreshold: 6 }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql }
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: run, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 5Gi } } }
+---
+# Bundled PostgreSQL: only the dashboard and agents in namespaces labelled sounding-agents=true may connect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: db, namespace: sounding }
+spec:
+  podSelector: { matchLabels: { app: db } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: dashboard } }
+        - namespaceSelector: { matchLabels: { sounding-agents: "true" } }
+      ports: [{ port: 5432 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: dashboard, namespace: sounding }
+spec:
+  selector: { app: dashboard }
+  ports: [{ port: 8080 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: dashboard, namespace: sounding }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: dashboard } }
+  template:
+    metadata: { labels: { app: dashboard } }
+    spec:
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      topologySpreadConstraints:
+        - { maxSkew: 1, topologyKey: kubernetes.io/hostname, whenUnsatisfiable: ScheduleAnyway, labelSelector: { matchLabels: { app: dashboard } } }
+      containers:
+        - name: dashboard
+          image: famda/sounding:dashboard-latest
+          imagePullPolicy: Always
+          envFrom: [{ secretRef: { name: sounding-agent } }]
+          ports: [{ containerPort: 8080 }]
+          # Ready while it reads the database; restarted only if the process stops answering.
+          readinessProbe: { httpGet: { path: /readyz, port: 8080 }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /healthz, port: 8080 }, periodSeconds: 10, failureThreshold: 3 }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 768Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      volumes:
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: dashboard, namespace: sounding }
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: dashboard } }
+---
+# The dashboard has no sign-in. Where the cluster's network plugin enforces NetworkPolicies, this admits no traffic from
+# other pods; kubectl port-forward still reaches it. To publish it, put an authenticating proxy in front and allow only
+# that proxy here (see "Dashboard access" in the Kubernetes setup guide).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: dashboard, namespace: sounding }
+spec:
+  podSelector: { matchLabels: { app: dashboard } }
+  policyTypes: [Ingress]

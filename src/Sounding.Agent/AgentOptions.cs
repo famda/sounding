@@ -10,11 +10,17 @@ public sealed class AgentOptions
     [ConfigurationKeyName("SAMPLE_HOST")]
     public bool SampleHost { get; set; } = true;
 
+    [ConfigurationKeyName("SAMPLE_NETWORK")]
+    public bool SampleNetwork { get; set; } = true;
+
+    [ConfigurationKeyName("CLUSTER_NETWORKS")]
+    public string? ClusterNetworks { get; set; }
+
     [ConfigurationKeyName("PROC_PATH")]
     public string ProcPath { get; set; } = "/proc";
 
     [ConfigurationKeyName("CGROUP_PATH")]
-    public string CgroupPath { get; set; } = "/sys/fs/cgroup";
+    public string CgroupPath { get; set; } = Sampling.CgroupLocation.DefaultMount;
 
     [ConfigurationKeyName("NVIDIA_SMI_PATH")]
     public string NvidiaSmiPath { get; set; } = "nvidia-smi";
@@ -36,6 +42,23 @@ public sealed class AgentOptions
 
     [ConfigurationKeyName("DISPLAY_NAME")]
     public string? DisplayName { get; set; }
+
+    // Kubernetes Downward API fields (metadata.namespace, metadata.name, metadata.uid) and the container's name in
+    // the pod spec, which the Downward API does not expose.
+    [ConfigurationKeyName("POD_NAMESPACE")]
+    public string? PodNamespace { get; set; }
+
+    [ConfigurationKeyName("POD_NAME")]
+    public string? PodName { get; set; }
+
+    [ConfigurationKeyName("POD_UID")]
+    public string? PodUid { get; set; }
+
+    [ConfigurationKeyName("POD_CONTAINER")]
+    public string? PodContainer { get; set; }
+
+    [ConfigurationKeyName("CLUSTER_DOMAIN")]
+    public string ClusterDomain { get; set; } = "cluster.local";
 
     [ConfigurationKeyName("RETENTION_MINUTES")]
     public int RetentionMinutes { get; set; } = 1440;

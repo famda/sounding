@@ -7,9 +7,17 @@ namespace Sounding.Agent.Sampling;
 // This network namespace's own addresses, the subnets it reaches directly and its gateways: what tells a peer
 // on the same Docker network from the host, the LAN or the internet. On a Docker network the gateway is the
 // host's end of it, so what the host sends (published ports, among them) arrives from there.
-public sealed class LocalNetwork(string procPath)
+public sealed class LocalNetwork(string procPath, string? clusterNetworks = null)
 {
     private readonly string _netPath = Path.Combine(procPath, "self/net");
+
+    // A Kubernetes pod's routes show only its gateway: the cluster's pod and service ranges are configured instead.
+    private readonly IPNetwork[] _cluster = ParseNetworks(clusterNetworks);
+
+    private string[]? _clusterNames;
+
+    public IReadOnlyList<string>? ClusterNetworks =>
+        _cluster.Length == 0 ? null : _clusterNames ??= [.. _cluster.Select(n => n.ToString())];
 
     public IReadOnlyList<string> Addresses { get; private set; } = [];
 
@@ -72,13 +80,19 @@ public sealed class LocalNetwork(string procPath)
         _gateways = gateways;
     }
 
-    // "internet", "host" (the gateway), "network" (a subnet this container is on) or "private" (the LAN,
-    // other networks).
-    public string Zone(string address) => Zone(address, TrafficSampler.IsInternet(address), V4(address));
+    // "internet", "host" (the gateway), "network" (a subnet this container is on, or a configured cluster range) or
+    // "private" (the LAN, other networks).
+    public string Zone(string address) => Zone(address, IsInternet(address), V4(address));
 
     // The same, for an address whose parts were worked out before: whether it is on the internet, and V4 of it.
     public string Zone(string address, bool internet, uint? v4)
     {
+        // A configured cluster range wins over the address's look: pod ranges can be public IPv6 or any other space.
+        if (InCluster(address))
+        {
+            return "network";
+        }
+
         if (internet)
         {
             return "internet";
@@ -102,6 +116,35 @@ public sealed class LocalNetwork(string procPath)
 
         return "private";
     }
+
+    // A public address outside the configured cluster ranges. Internet peers are aggregated under one address, so a
+    // cluster address taken for one would lose the address other nodes match it by.
+    public bool IsInternet(string address) => !InCluster(address) && TrafficSampler.IsInternet(address);
+
+    private bool InCluster(string address)
+    {
+        if (_cluster.Length == 0 || !IPAddress.TryParse(address, out var ip))
+        {
+            return false;
+        }
+
+        foreach (var network in _cluster)
+        {
+            if (network.Contains(ip))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IPNetwork[] ParseNetworks(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : [.. value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(n => IPNetwork.TryParse(n, out var network) ? network : throw new FormatException(
+                    $"SOUNDING_CLUSTER_NETWORKS: '{n}' is not a network in CIDR notation, such as 10.244.0.0/16"))];
 
     // An IPv4 address as a number, in the same byte order as /proc/net/route; null for anything else.
     public static uint? V4(string address) =>

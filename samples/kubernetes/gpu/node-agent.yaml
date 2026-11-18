@@ -1,0 +1,41 @@
+# The node agent with Docker Desktop's NVIDIA GPU, in place of the one in node-agent.yaml. Run install-gpu-driver.ps1
+# first. Privileged: without a device plugin (none supports WSL), that is the only way to reach the GPU (/dev/dxg).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: { name: node-agent, namespace: sounding-node }
+spec:
+  selector: { matchLabels: { app: node-agent } }
+  template:
+    metadata: { labels: { app: node-agent } }
+    spec:
+      automountServiceAccountToken: false
+      tolerations: [{ operator: Exists }]
+      containers:
+        - name: node-agent
+          image: famda/sounding:agent-latest
+          imagePullPolicy: Always
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext: { privileged: true, runAsUser: 0 }
+          envFrom: [{ secretRef: { name: sounding-agent } }]
+          env:
+            - { name: SOUNDING_HOST_ID, valueFrom: { fieldRef: { fieldPath: spec.nodeName } } }
+            - { name: SOUNDING_POD_NAMESPACE, valueFrom: { fieldRef: { fieldPath: metadata.namespace } } }
+            - { name: SOUNDING_POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - { name: SOUNDING_POD_UID, valueFrom: { fieldRef: { fieldPath: metadata.uid } } }
+            - { name: SOUNDING_POD_CONTAINER, value: node-agent }
+            - { name: SOUNDING_NVIDIA_SMI_PATH, value: /usr/lib/wsl/bin/nvidia-smi }
+            - { name: LD_LIBRARY_PATH, value: /usr/lib/wsl/lib }
+          volumeMounts:
+            - { name: proc, mountPath: /host/proc, readOnly: true }
+            - { name: sys, mountPath: /host/sys, readOnly: true }
+            - { name: disk, mountPath: /host/disk, readOnly: true }
+            - { name: dxg, mountPath: /dev/dxg }
+            - { name: driver, mountPath: /usr/lib/wsl, readOnly: true }
+      volumes:
+        - { name: proc, hostPath: { path: /proc } }
+        - { name: sys, hostPath: { path: /sys } }
+        - { name: disk, hostPath: { path: / } }
+        - { name: dxg, hostPath: { path: /dev/dxg, type: CharDevice } }
+        - { name: driver, hostPath: { path: /opt/wsl-gpu, type: Directory } }

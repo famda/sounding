@@ -125,7 +125,7 @@ Jump to [CPU](#cpu), [memory](#memory), [GPU](#gpu), [disk](#disk-and-filesystem
 | Queued, resent | Data waiting in the connection now, and data sent again in each direction. |
 | Sent, received, in, out | Data over the connection's lifetime, and per second now. |
 | First seen, last seen, new destination | When the connection was first and last seen, and whether its destination was first contacted in the last 15 minutes. |
-| Requests: per second, errors | Requests per second, and the share that got an error reply, over the last minute. HTTP counts 5xx replies (not 4xx); mail and FTP count 4xx and 5xx; databases and message brokers count their error replies. |
+| Requests: per second, errors | Requests per second, and the share that got an error reply, over the last minute. HTTP counts 5xx replies. A 500 counts as an error and a 404 does not. Mail and FTP count 4xx and 5xx. Databases and message brokers count their error replies. |
 | Median, 95th | Half, and 95 in 100, of the answers came within this time. Messages that get no answer have no time. |
 | Sent / received, per connection | The average size of requests and answers, and decoded requests per observed connection in the last minute. A value of 1 means one request per connection in that window, not necessarily a newly opened connection. |
 

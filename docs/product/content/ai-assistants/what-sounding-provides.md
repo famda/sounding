@@ -32,7 +32,8 @@ Without prompts or resources, an assistant still does everything with the tools:
 
 ## Tools
 
-Every tool only reads. Your assistant may ask your permission before using one.
+Ask in your own words and your assistant can run the lookups below. Each tool reads monitoring data. Your assistant
+may ask your permission before using one.
 
 **Find what's wrong**
 

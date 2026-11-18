@@ -30,7 +30,7 @@ export function Hero() {
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button href="/get-started/getting-started/">
-              Add to your application
+              Get started
             </Button>
             <Link
               href="/concepts/how-sounding-works/"

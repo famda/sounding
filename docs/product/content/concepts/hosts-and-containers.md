@@ -16,11 +16,16 @@ The dashboard shows three levels, and you can move between them at any time.
 
 ## Names
 
-**Hosts** are named after the start of their ID unless you give them a name. Set `SOUNDING_HOST_DISPLAY_NAME` to the
-same value on every container of a machine.
+**Hosts** are named after the start of their boot ID, or after the whole `SOUNDING_HOST_ID` when you set one, such as a
+Kubernetes node's name. To choose another name, set `SOUNDING_HOST_DISPLAY_NAME` to the same value on every container
+of a machine.
 
 **Containers** are named after their Docker container name, or their ID when Docker doesn't provide one (on Docker's
-default network, for example). Set `SOUNDING_DISPLAY_NAME` to choose a name yourself.
+default network, for example). Set `SOUNDING_DISPLAY_NAME` to choose a name yourself. If you replace a container named `web`, its
+replacement can also appear as `web`. With their default IDs, the two have separate histories.
+
+On Kubernetes, names and IDs come from the cluster: see
+[hosts and containers on Kubernetes](kubernetes.md#hosts-and-containers).
 
 ## Identity
 
@@ -31,7 +36,8 @@ Behind each name is an ID that groups the figures:
   every container of the machine, and a different value on each machine.
 - A **container's ID** defaults to its hostname, normally Docker's short container ID. Restarting the same container
   keeps it; recreating the container normally changes it. If you reuse custom hostnames, set `SOUNDING_CONTAINER_ID`
-  to a value unique across all monitored hosts and containers. The dashboard counts restarts under the same ID.
+  to a value unique across all monitored hosts and containers. The dashboard counts restarts under the same ID. On
+  Kubernetes, it's the pod's UID and the container's name, so a replaced pod is a new container.
 
 > [!IMPORTANT]
 > IDs must be unique. Two machines, or two running containers, with the same ID have their figures mixed together.
