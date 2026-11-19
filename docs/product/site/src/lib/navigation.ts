@@ -95,6 +95,7 @@ export const navigation: Array<{ title: string; links: Array<NavLink> }> = [
     links: [
       { title: 'Docker Compose', href: '/deployment/docker-compose' },
       { title: 'Kubernetes', href: '/deployment/kubernetes' },
+      { title: 'Aspire', href: '/deployment/aspire' },
     ],
   },
   {

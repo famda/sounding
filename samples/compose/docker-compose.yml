@@ -119,7 +119,7 @@ services:
     <<: *api
     profiles: [gpu]
     depends_on: [ollama]
-    environment: { <<: *api-env, API_ROLE: assistant, OLLAMA_MODEL: "gemma3:270m" }
+    environment: { <<: *api-env, API_ROLE: assistant, OLLAMA_MODEL: "qwen3.5:9b" }
 
   cache:
     <<: *sample

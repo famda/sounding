@@ -22,7 +22,7 @@ The product documentation is published at **<https://famda.github.io/sounding/>*
   [Tutorial: find a memory leak](content/ai-assistants/tutorial-find-a-memory-leak.md),
   [Set up a local model](content/ai-assistants/set-up-a-local-model.md).
 - **Deployment:** [Docker Compose](content/deployment/docker-compose.md),
-  [Kubernetes](content/deployment/kubernetes.md).
+  [Kubernetes](content/deployment/kubernetes.md), [Aspire](content/deployment/aspire.md).
 - **Operate:** [Set up the database](content/operate/set-up-the-database.md),
   [Secure Sounding](content/operate/secure-sounding.md), [Upgrade Sounding](content/operate/upgrade-sounding.md),
   [Remove Sounding](content/operate/remove-sounding.md), and the host and permission guides in

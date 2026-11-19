@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1216" height="312" viewBox="32 64 1216 312" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">Sounding in an Aspire AppHost</title>
+  <desc id="description">WithSounding adds the Sounding agent to each container you watch. The agents send metrics to a database resource. The Sounding dashboard, added with AddSoundingDashboard, reads that database and shows every container live.</desc>
+  <defs>
+    <linearGradient id="database" x1="566" y1="166" x2="706" y2="266" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#183a50"/>
+      <stop offset="1" stop-color="#102531"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="m2 1 5 4-5 4" stroke="#2dd4bf" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <symbol id="cube" viewBox="0 0 14 16">
+      <path d="m0 4 7-4 7 4v8l-7 4-7-4zm0 0 7 4 7-4m-7 4v8" stroke="#94a3b8" stroke-width="1.3" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+
+  <g font-family="Segoe UI, Arial, sans-serif">
+
+    <!-- Containers with the agent -->
+    <text x="48" y="86" fill="#94a3b8" font-size="12" font-weight="600" letter-spacing="2">YOUR CONTAINERS</text>
+    <rect x="48" y="102" width="320" height="88" rx="12" fill="#101c2c" stroke="#334155"/>
+    <use href="#cube" x="64" y="116" width="14" height="16"/>
+    <text x="90" y="129" fill="#e2e8f0" font-size="15" font-weight="600">cache</text>
+    <text x="352" y="129" text-anchor="end" fill="#64748b" font-size="12">Redis</text>
+    <rect x="60" y="148" width="296" height="28" rx="6" fill="#123438"/>
+    <circle cx="74" cy="162" r="3" fill="#2dd4bf"/>
+    <text x="86" y="166.5" fill="#99f6e4" font-size="12" font-weight="500">Sounding agent</text>
+
+    <rect x="48" y="210" width="320" height="88" rx="12" fill="#101c2c" stroke="#334155"/>
+    <use href="#cube" x="64" y="224" width="14" height="16"/>
+    <text x="90" y="237" fill="#e2e8f0" font-size="15" font-weight="600">api</text>
+    <text x="352" y="237" text-anchor="end" fill="#64748b" font-size="12">Your image</text>
+    <rect x="60" y="256" width="296" height="28" rx="6" fill="#123438"/>
+    <circle cx="74" cy="270" r="3" fill="#2dd4bf"/>
+    <text x="86" y="274.5" fill="#99f6e4" font-size="12" font-weight="500">Sounding agent</text>
+
+    <g stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M368 146h40q20 0 20 20v14q0 20 20 20h106" marker-end="url(#arrow)"/>
+      <path d="M368 254h40q20 0 20-20v-14q0-20 20-20"/>
+    </g>
+    <circle cx="368" cy="146" r="4" fill="#2dd4bf"/>
+    <circle cx="368" cy="254" r="4" fill="#2dd4bf"/>
+    <text x="466" y="190" fill="#99f6e4" font-size="13">Metrics</text>
+
+    <!-- Database -->
+    <text x="636" y="86" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600" letter-spacing="2">DATABASE</text>
+    <path d="M566 166v86c0 11 31 20 70 20s70-9 70-20v-86" fill="url(#database)" stroke="#4b9ba7" stroke-width="1.5"/>
+    <path d="M566 196c0 11 31 20 70 20s70-9 70-20M566 224c0 11 31 20 70 20s70-9 70-20" stroke="#4b9ba7" stroke-width="1.5" stroke-opacity=".55"/>
+    <ellipse cx="636" cy="166" rx="70" ry="20" fill="#1c4051" stroke="#67c6cd" stroke-width="1.5"/>
+    <ellipse cx="636" cy="166" rx="48" ry="10" stroke="#67c6cd" stroke-opacity=".25"/>
+
+    <path d="M718 200h126" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+    <text x="781" y="190" text-anchor="middle" fill="#99f6e4" font-size="13">Live view</text>
+
+    <!-- Dashboard -->
+    <text x="862" y="86" fill="#94a3b8" font-size="12" font-weight="600" letter-spacing="2">SOUNDING DASHBOARD</text>
+    <g transform="translate(0 -152)">
+      <rect x="862" y="254" width="370" height="226" rx="14" fill="#0c1421" stroke="#475569" stroke-width="1.5"/>
+      <path d="M863 294h368" stroke="#334155"/>
+      <image href="logo.svg" x="880" y="262" width="24" height="24"/>
+      <text x="910" y="279" fill="#e2e8f0" font-size="13" font-weight="600">Sounding</text>
+      <text x="984" y="279" fill="#94a3b8" font-size="12">/ All hosts</text>
+      <circle cx="1176" cy="274" r="3" fill="#2dd4bf"/>
+      <text x="1186" y="279" fill="#99f6e4" font-size="11">Live</text>
+      <g fill="#111e2d" stroke="#26374c">
+        <rect x="880" y="310" width="156" height="72" rx="7"/>
+        <rect x="1054" y="310" width="160" height="72" rx="7"/>
+        <rect x="880" y="394" width="156" height="72" rx="7"/>
+        <rect x="1054" y="394" width="160" height="72" rx="7"/>
+      </g>
+      <g fill="#cbd5e1" font-size="12" font-weight="600">
+        <text x="893" y="330">CPU</text>
+        <text x="1067" y="330">Memory</text>
+        <text x="893" y="414">Disk</text>
+        <text x="1067" y="414">Network</text>
+      </g>
+      <path d="m893 366 12-4 12 3 12-13 12 8 12-4 12 5 12-16 12 7 12-5 12 3 8-6" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round"/>
+      <rect x="1067" y="348" width="132" height="7" rx="3.5" fill="#26374c"/>
+      <rect x="1067" y="348" width="88" height="7" rx="3.5" fill="#38bdf8"/>
+      <rect x="1067" y="364" width="132" height="4" rx="2" fill="#26374c"/>
+      <rect x="1067" y="364" width="52" height="4" rx="2" fill="#2dd4bf"/>
+      <path d="m893 452 12-2 12 2 12-5 12 3 12-20 12 16 12-5 12 8 12-2 12 4 8-4" stroke="#2dd4bf" stroke-width="2" stroke-linejoin="round"/>
+      <path d="m1067 451 12-3 12 2 12-16 12 12 12-3 12 8 12-21 12 17 12-4 12 6 8-3" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round"/>
+    </g>
+
+    <!-- The AppHost call behind each part -->
+    <g font-family="Cascadia Code, Consolas, monospace" font-size="13" fill="#5eead4">
+      <text x="48" y="356">.WithSounding(database)</text>
+      <text x="636" y="356" text-anchor="middle">.AddPostgres(…)</text>
+      <text x="862" y="356">.AddSoundingDashboard(…)</text>
+    </g>
+
+  </g>
+</svg>

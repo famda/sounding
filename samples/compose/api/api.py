@@ -23,7 +23,7 @@ DATABASE = dict(host="shop-db", dbname="shop", user="shop", password=os.environ[
 CATALOG_URL = "http://catalog-api:8080"
 OLLAMA_URL = "http://ollama:11434"
 ROLE = os.environ["API_ROLE"]
-MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:270m")
+MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:9b")
 RECEIPT_BYTES = int(os.environ.get("RECEIPT_KB", "3072")) * 1024
 NAMES = ["Mug", "Notebook", "Pen", "Lamp", "Backpack", "Bottle", "Headphones", "Cable", "Charger", "Mouse",
          "Keyboard", "Sticker", "Poster", "Plant", "Candle", "Scarf", "Socks", "Cap", "Umbrella", "Wallet",
@@ -85,8 +85,10 @@ def route(method, path, body):
         rows = sql("SELECT id, item_id, qty, total FROM orders ORDER BY id DESC LIMIT 10")
         return 200, [{"id": i, "item": it, "qty": q, "total": float(t)} for i, it, q, t in rows]
     if method == "POST" and path == "/api/assistant":
+        # Without thinking: a thinking model would spend the whole token budget before it answers.
         reply = call("POST", f"{OLLAMA_URL}/api/generate", {
-            "model": MODEL, "prompt": body.get("prompt", "Hello"), "stream": False, "options": {"num_predict": 64},
+            "model": MODEL, "prompt": body.get("prompt", "Hello"), "stream": False, "think": False,
+            "options": {"num_predict": 64},
         }, timeout=120)
         return 200, {"answer": reply.get("response", "")}
     return 404, {"error": "not found"}

@@ -17,6 +17,7 @@ Choose a sample or go directly to the setup guide for your own application.
 | Sample Kubernetes workload | [Try the Kubernetes demo](kubernetes-demo.md) on Docker Desktop’s cluster. |
 | Your Compose service | [Set up Sounding with Docker Compose](../deployment/docker-compose.md) |
 | Your Kubernetes workload | [Set up Sounding on Kubernetes](../deployment/kubernetes.md) |
+| Your Aspire AppHost | [Set up Sounding with Aspire](../deployment/aspire.md) |
 
 ## What every setup involves
 

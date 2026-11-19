@@ -57,6 +57,7 @@ You can look at your whole fleet, one host, or one container, and move between t
 |---|---|
 | **Docker Compose** on Linux, or **Docker Desktop** | [Set up Sounding with Docker Compose](deployment/docker-compose.md) |
 | **Kubernetes** | [Set up Sounding on Kubernetes](deployment/kubernetes.md) |
+| **Aspire** | [Set up Sounding with Aspire](deployment/aspire.md) |
 
 Sounding needs **x86-64 or ARM64** Linux containers using **cgroup v2**, and PostgreSQL 14 or later. Podman isn't
 supported yet. See [requirements](get-started/getting-started.md#requirements).
