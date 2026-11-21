@@ -41,9 +41,9 @@ public sealed class TrafficSampler(IOptions<AgentOptions> options, HostIdentity 
     private static readonly NamePool SocketUids = new();
 
     private readonly Dictionary<FlowKey, Flow> _flows = [];
-    // Flows come and go by the thousand on a busy service; who it talks to is kept as long as samples are.
+    // Flows come and go by the thousand on a busy service; who it talks to is kept for a day, the default retention.
     private readonly Dictionary<PeerKey, PeerLink> _peers = [];
-    private readonly TimeSpan _peerExpiry = TimeSpan.FromMinutes(Math.Max(1, options.Value.RetentionMinutes));
+    private readonly TimeSpan _peerExpiry = TimeSpan.FromHours(24);
     private readonly ExpiringCache<(string Protocol, string Remote, int Port), DateTime> _destinations = new(MaxMetadata, FlowExpiry); // first contact
     private readonly ExpiringCache<(string Protocol, string Address, int Port), DateTime> _listeners = new(MaxMetadata, FlowExpiry); // first seen
     private readonly ExpiringCache<string, string?> _names = new(MaxMetadata, FlowExpiry); // IP -> DNS name

@@ -39,7 +39,7 @@ See [hosts, containers, and the fleet](../concepts/hosts-and-containers.md#ident
 | Setting | Default | Description |
 |---|---|---|
 | `SOUNDING_INTERVAL_MILLISECONDS` | `1000` | How often the container is measured, in milliseconds. The minimum is `250`. Measuring less often reduces the load on the database. |
-| `SOUNDING_RETENTION_MINUTES` | `1440` | The history retention target in minutes; values below `1` use `1`. Use the same value on every container. Cleanup requires running host-sampling agents; see [history](../concepts/samples-and-history.md#history). The dashboard shows at most 24 hours, whatever you keep. |
+| `SOUNDING_BUFFER_MINUTES` | `15` | How long the agent holds its figures in memory while it can't write them: the database is unreachable, or the dashboard hasn't created Sounding's tables yet. It writes them once it can; older figures are dropped. Values below `1` use `1`. |
 | `SOUNDING_SAMPLE_HOST` | `true` | Whether this container may report its host's figures. Set it to `false` on short-lived containers, such as scheduled jobs, so that a long-running container reports the host. At least one container per host must keep it `true`. |
 | `SOUNDING_SAMPLE_NETWORK` | `true` | Whether this container reports its network. In a Kubernetes pod with several monitored containers, set it to `false` on all but one. |
 | `SOUNDING_CLUSTER_NETWORKS` | *None* | Kubernetes: the cluster's pod and Service ranges, such as `10.244.0.0/16,10.96.0.0/16`. Calls to addresses in these ranges are matched to the pod that owns them on any node, and never counted as internet traffic. See [set the cluster's ranges](../deployment/kubernetes.md#set-the-clusters-ranges). |
@@ -87,7 +87,14 @@ Change these only if your environment puts these resources elsewhere.
 
 | Setting | Default | Description |
 |---|---|---|
-| `SOUNDING_CONNECTION_STRING` | *Required* | The PostgreSQL connection string, to the same database as the agents. |
+| `SOUNDING_CONNECTION_STRING` | *Required* | The PostgreSQL connection string, to the same database as the agents. Its user creates and updates Sounding's tables. |
+| `SOUNDING_AGENT_ROLE` | *None* | A database user the agents connect as. On every start, the dashboard grants it what agents need and nothing more; see [give the agents their own user](../operate/set-up-the-database.md#give-the-agents-their-own-user). |
+
+### History
+
+| Setting | Default | Description |
+|---|---|---|
+| `SOUNDING_RETENTION_HOURS` | `24` | How long samples, events, and captures are kept, in hours; values below `1` use `1`. Samples are deleted an hour at a time, so up to an hour more is kept. The dashboard shows at most 24 hours, whatever you keep. Set the same value on every dashboard replica. |
 
 ### What the dashboard shows
 

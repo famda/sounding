@@ -9,6 +9,7 @@ public sealed class FleetMonitor(
     FleetRepository repository,
     Broadcaster<FleetView> broadcaster,
     FleetFreshness freshness,
+    DatabaseState database,
     ILogger<FleetMonitor> logger) : BackgroundService
 {
     private static readonly TimeSpan FallbackRefresh = TimeSpan.FromSeconds(2);
@@ -54,7 +55,7 @@ public sealed class FleetMonitor(
 
     private async Task RefreshAsync(CancellationToken stoppingToken)
     {
-        var schemaReady = false;
+        await database.Ready.WaitAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -74,12 +75,6 @@ public sealed class FleetMonitor(
 
             try
             {
-                if (!schemaReady)
-                {
-                    await DatabaseSchema.EnsureAsync(dataSource, stoppingToken);
-                    schemaReady = true;
-                }
-
                 var startedAt = Stopwatch.GetTimestamp();
                 var fleet = await repository.GetFleetAsync(stoppingToken);
                 broadcaster.Publish(new FleetView(fleet, startedAt));
@@ -87,7 +82,6 @@ public sealed class FleetMonitor(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                if (DatabaseSchema.IsMissing(ex)) schemaReady = false;
                 logger.LogWarning("Fleet refresh failed: {Message}", ex.Message);
             }
         }

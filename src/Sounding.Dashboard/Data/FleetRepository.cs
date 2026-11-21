@@ -39,7 +39,8 @@ public sealed class FleetRepository(NpgsqlDataSource dataSource, IOptions<Dashbo
                 select ts, cpu_percent_of_host, cpu_cores, cpu_limit_cores, memory_bytes, memory_limit_bytes,
                        io_read_bps, io_write_bps, net_rx_bps, net_tx_bps, gpu_percent, gpu_memory_bytes, disk_used_bytes
                 from container_samples
-                where container_id = w.container_id
+                -- Only an online container's sample is shown, and the bound keeps the lookup in the latest partitions.
+                where container_id = w.container_id and ts > now() - @stale
                 order by ts desc
                 limit 1
             ) s on true

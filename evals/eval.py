@@ -119,10 +119,9 @@ def psql(sql=None, stdin=None, query=False):
     return output
 
 
-# What the dashboard's schema looks like: a snapshot replays only into the schema it was recorded with.
-SCHEMA = """select md5(coalesce(obj_description('public.hosts'::regclass, 'pg_class'), '') || ':' || string_agg(
-    table_name || '.' || column_name || ':' || data_type, ',' order by table_name, column_name))
-    from information_schema.columns where table_schema = 'public'"""
+# Which schema the database is at, from the migrations the dashboard applied: a snapshot replays only into the schema
+# it was recorded with.
+SCHEMA = "select md5(string_agg(version || ':' || checksum, ',' order by version)) from schema_migrations"
 
 
 def snapshot_name(case):
@@ -189,13 +188,20 @@ alter database sounding set search_path = public, replay, pg_catalog;
 
 def restore(case):
     """Replaces the whole database with the snapshot, holds its clock, and restarts the dashboard so that its
-    connections take the clock and nothing it kept from the case before remains."""
+    connections take the clock and nothing it kept from the case before remains. The dashboard is stopped meanwhile:
+    its maintenance would otherwise create partitions while the snapshot's are restored."""
+    def dashboard(action):
+        result = subprocess.run(["docker", action, ENV + "dashboard-1"], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"docker {action} dashboard failed: {result.stderr.strip()}")
+
+    dashboard("stop")
+    # Into an empty schema: a dump's own drops can't remove an attached partition's constraints.
+    psql("drop schema public cascade; create schema public;")
     with gzip.open(snapshot_path(case), "rb") as file:
         psql(stdin=file)
     psql(CLOCK)
-    result = subprocess.run(["docker", "restart", ENV + "dashboard-1"], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"docker restart dashboard failed: {result.stderr.strip()}")
+    dashboard("start")
     deadline = time.time() + 120
     while True:  # until the dashboard has read the restored fleet
         try:

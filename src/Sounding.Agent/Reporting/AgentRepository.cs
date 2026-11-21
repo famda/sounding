@@ -16,93 +16,103 @@ public sealed class AgentRepository(AgentConnection database, HostIdentity ident
 
     private readonly TimeSpan _staleAfter = TimeSpan.FromMilliseconds(Math.Max(10_000, options.Value.IntervalMilliseconds * 5));
 
-    // The process history (process_samples) every 5 s, besides the latest list every tick. Counted in ticks:
-    // a deadline in time slips to 6 s whenever a tick fires a few milliseconds early.
-    private readonly int _processHistoryTicks = (int)Math.Max(1, Math.Round(5000.0 / Math.Max(250, options.Value.IntervalMilliseconds)));
-
-    private long _ticks;
     private string? _latestWritten;
     private bool _registered;
+    private int _version;
+    private string _containerSampleSql = "";
+    private string _hostSampleSql = "";
 
-    // A container's sample: its figures, and out of its detail a column for each value charted over time.
-    private static readonly string ContainerSampleSql = $"""
-        with sample as materialized (select @detail::jsonb as detail)
-        insert into container_samples (container_id, ts, cpu_percent_of_host, cpu_cores, cpu_limit_cores,
-                                       memory_bytes, memory_limit_bytes, io_read_bps, io_write_bps,
-                                       net_rx_bps, net_tx_bps, gpu_percent, gpu_memory_bytes, disk_used_bytes,
-                                       {string.Join(", ", SampleColumns.ContainerDetail.Select(c => c.Column))})
-        select @container, now(), @cpuPercent, @cpuCores, @cpuLimit::float8, @memory, @memoryLimit::bigint, @ioRead, @ioWrite,
-               @netRx, @netTx, @gpuPercent::float8, @gpuMemory::bigint, @diskUsed::bigint,
-               {string.Join(", ", SampleColumns.ContainerDetail.Select(c => c.Sql))}
-        from sample
-        on conflict do nothing
-        """;
+    // The database's clock minus the agent's, from the last write: a tick is timed when it is sampled, by the agent's
+    // clock, and stored on the database's, the one every other time is read on.
+    private TimeSpan _clockOffset;
 
-    // The host's sample. The parts other agents sampled (network, GPU, host disk) replace the snapshot's
-    // placeholders while fresh, and the containers' totals are added. The whole of it is kept as the host's latest;
-    // its history gets a row with a column for each value charted over time.
-    private static readonly string HostSampleSql = $$"""
-        with snapshot as materialized (
-            select @snapshot::jsonb as j
-        ),
-        parts as (
-            select part, data from host_parts where host_id = @host and ts > now() - @partsFresh
-        ),
-        latest as (
-            select distinct on (s.container_id) s.cpu_percent_of_host, s.cpu_cores, s.memory_bytes
-            from container_samples s
-            join containers c on c.container_id = s.container_id
-            where c.host_id = @host
-              and c.stopped_at is null
-              and c.last_seen > now() - @stale
-              and s.ts > now() - @stale
-            order by s.container_id, s.ts desc
-        ),
-        merged as materialized (
-            select jsonb_set(jsonb_set(jsonb_set(jsonb_set((select j from snapshot),
-                '{containers}', jsonb_build_object(
-                    'count', count(*),
-                    'cpuPercentOfHost', round(coalesce(sum(cpu_percent_of_host), 0)::numeric, 2),
-                    'cpuCores', round(coalesce(sum(cpu_cores), 0)::numeric, 3),
-                    'memoryBytes', coalesce(sum(memory_bytes), 0))),
-                '{network}', coalesce((select data from parts where part = 'network'), (select j -> 'network' from snapshot))),
-                '{gpu}', coalesce((select data from parts where part = 'gpu'), (select j -> 'gpu' from snapshot))),
-                '{disk,volumes}', coalesce((select data from parts where part = 'disk'), (select j #> '{disk,volumes}' from snapshot))) as s
-            from latest
-        ),
-        sample as (
-            insert into host_samples (host_id, ts, container_id,
-                                      {{string.Join(", ", SampleColumns.Host.Select(c => c.Column))}},
-                                      cores, gpus, temperatures)
-            select @host, now(), @container,
-                   {{string.Join(", ", SampleColumns.Host.Select(c => c.Sql))}},
-                   {{SampleColumns.HostCoresSql}},
-                   {{SampleColumns.HostGpusSql}},
-                   {{SampleColumns.HostTemperaturesSql}}
-            from merged
+    // The statements for the schema version the database is at: a column added after it isn't written.
+    public void Use(int version)
+    {
+        if (version == _version) return;
+        _version = version;
+        var container = SampleColumns.ContainerDetail.Where(c => c.Since <= version).ToArray();
+        var host = SampleColumns.Host.Where(c => c.Since <= version).ToArray();
+
+        // A container's sample: its figures, and out of its detail a column for each value charted over time.
+        _containerSampleSql = $"""
+            with sample as materialized (select @detail::jsonb as detail)
+            insert into container_samples (container_id, ts, cpu_percent_of_host, cpu_cores, cpu_limit_cores,
+                                           memory_bytes, memory_limit_bytes, io_read_bps, io_write_bps,
+                                           net_rx_bps, net_tx_bps, gpu_percent, gpu_memory_bytes, disk_used_bytes,
+                                           {string.Join(", ", container.Select(c => c.Column))})
+            select @container, @ts, @cpuPercent, @cpuCores, @cpuLimit::float8, @memory, @memoryLimit::bigint, @ioRead, @ioWrite,
+                   @netRx, @netTx, @gpuPercent::float8, @gpuMemory::bigint, @diskUsed::bigint,
+                   {string.Join(", ", container.Select(c => c.Sql))}
+            from sample
             on conflict do nothing
-        )
-        update hosts
-        set last_seen = now(), leader_container_id = @container, latest = merged.s, latest_ts = now(), latest_container_id = @container
-        from merged
-        where host_id = @host
-        """;
+            """;
+
+        // The host's sample. The parts other agents sampled (network, GPU, host disk) replace the snapshot's
+        // placeholders while fresh, and the containers' totals are added. The whole of it is kept as the host's latest;
+        // its history gets a row with a column for each value charted over time.
+        _hostSampleSql = $$"""
+            with snapshot as materialized (
+                select @snapshot::jsonb as j
+            ),
+            parts as (
+                select part, data from host_parts where host_id = @host and ts > now() - @partsFresh
+            ),
+            latest as (
+                select distinct on (s.container_id) s.cpu_percent_of_host, s.cpu_cores, s.memory_bytes
+                from container_samples s
+                join containers c on c.container_id = s.container_id
+                where c.host_id = @host
+                  and c.stopped_at is null
+                  and c.last_seen > now() - @stale
+                  and s.ts > now() - @stale
+                order by s.container_id, s.ts desc
+            ),
+            merged as materialized (
+                select jsonb_set(jsonb_set(jsonb_set(jsonb_set((select j from snapshot),
+                    '{containers}', jsonb_build_object(
+                        'count', count(*),
+                        'cpuPercentOfHost', round(coalesce(sum(cpu_percent_of_host), 0)::numeric, 2),
+                        'cpuCores', round(coalesce(sum(cpu_cores), 0)::numeric, 3),
+                        'memoryBytes', coalesce(sum(memory_bytes), 0))),
+                    '{network}', coalesce((select data from parts where part = 'network'), (select j -> 'network' from snapshot))),
+                    '{gpu}', coalesce((select data from parts where part = 'gpu'), (select j -> 'gpu' from snapshot))),
+                    '{disk,volumes}', coalesce((select data from parts where part = 'disk'), (select j #> '{disk,volumes}' from snapshot))) as s
+                from latest
+            ),
+            sample as (
+                insert into host_samples (host_id, ts,
+                                          {{string.Join(", ", host.Select(c => c.Column))}},
+                                          cores, gpus, temperatures)
+                select @host, @ts,
+                       {{string.Join(", ", host.Select(c => c.Sql))}},
+                       {{SampleColumns.HostCoresSql}},
+                       {{SampleColumns.HostGpusSql}},
+                       {{SampleColumns.HostTemperaturesSql}}
+                from merged
+                on conflict do nothing
+            )
+            update hosts
+            set last_seen = now(), leader_container_id = @container, latest = merged.s, latest_ts = @ts, latest_container_id = @container
+            from merged
+            where host_id = @host
+            """;
+    }
 
     public async Task RegisterAsync(string? kernel, CancellationToken cancellationToken)
     {
         _latestWritten = null;
         var killed = _registered ? null : await UnreportedStopAsync(cancellationToken);
         await using var batch = new NpgsqlBatch(await database.GetAsync(cancellationToken));
+        batch.BatchCommands.Add(new NpgsqlBatchCommand("select now()"));
         batch.BatchCommands.Add(Command("""
-            insert into hosts (host_id, display_name, kernel, retention)
-            values (@host, @name, @kernel, @retention)
+            insert into hosts (host_id, display_name, kernel)
+            values (@host, @name, @kernel)
             on conflict (host_id) do update
                 set display_name = case when @named then excluded.display_name else hosts.display_name end,
-                    kernel = coalesce(excluded.kernel, hosts.kernel),
-                    retention = coalesce(hosts.retention, excluded.retention)
+                    kernel = coalesce(excluded.kernel, hosts.kernel)
             """,
-            ("host", identity.HostId), ("name", identity.HostDisplayName), ("named", identity.HostNameSet), ("kernel", kernel),
-            ("retention", TimeSpan.FromMinutes(Math.Max(1, options.Value.RetentionMinutes)))));
+            ("host", identity.HostId), ("name", identity.HostDisplayName), ("named", identity.HostNameSet), ("kernel", kernel)));
         batch.BatchCommands.Add(Command("""
             insert into containers (container_id, host_id, name, started_at, last_seen, process_started_at)
             values (@container, @host, @name, now(), now(), @process)
@@ -130,63 +140,71 @@ public sealed class AgentRepository(AgentConnection database, HostIdentity ident
         }
 
         batch.BatchCommands.Add(new NpgsqlBatchCommand($"listen {DatabaseSchema.CaptureChannel}"));
-        await batch.ExecuteNonQueryAsync(cancellationToken);
+        await ExecuteTimedAsync(batch, cancellationToken);
         _registered = true;
     }
 
-    public async Task WriteTickAsync(
-        ContainerUsage? usage, ContainerState state, HostReport host, IReadOnlyList<AgentEvent> events, CancellationToken cancellationToken)
+    // The ticks kept over time, oldest first, and what the newest says of now: one round trip, one transaction.
+    public async Task WriteAsync(IReadOnlyList<Tick> history, Tick newest, CancellationToken cancellationToken)
     {
         await using var batch = new NpgsqlBatch(await database.GetAsync(cancellationToken));
-        var processes = JsonSerializer.Serialize(state.Processes, SoundingJson.Stored.IReadOnlyListProcessUsage);
-        // What a sample holds besides its columns is kept for the latest one only, on the container's row.
-        var detail = usage?.Detail is null ? null : JsonSerializer.Serialize(PerSample(usage.Detail), SoundingJson.Stored.ContainerDetail);
-        batch.BatchCommands.Add(Command("""
-            update containers
-            set last_seen = now(), stopped_at = null, processes = @processes::jsonb, network = @network::jsonb,
-                detail = case when @sampled then @detail::jsonb else detail end
-            where container_id = @container
-            """,
-            ("container", identity.ContainerId), ("processes", processes),
-            ("network", JsonSerializer.Serialize(state.Network, SoundingJson.Stored.NetworkActivity)),
-            ("sampled", usage is not null), ("detail", detail)));
-        var latest = state.Detail is null ? null : JsonSerializer.Serialize(Latest(state.Detail), SoundingJson.Stored.ContainerDetail);
-        if (latest != _latestWritten)
-        {
-            batch.BatchCommands.Add(Command(
-                "update containers set latest = @latest::jsonb where container_id = @container",
-                ("container", identity.ContainerId), ("latest", latest)));
-        }
-
-        if (_ticks++ % _processHistoryTicks == 0 && state.Processes.Count > 0)
+        batch.BatchCommands.Add(new NpgsqlBatchCommand("select now()"));
+        string? latest = null;
+        if (newest.State is { } state)
         {
             batch.BatchCommands.Add(Command("""
-                insert into process_samples (container_id, ts, pid, started_at, name, command, user_name, state, threads, cpu_cores, cpu_seconds,
-                                             memory_bytes, gpu_percent, gpu_memory_bytes, read_bps, write_bps, read_bytes, write_bytes, parent_pid)
-                select @container, now(), x.pid, x."startedAt", x.name, x."commandLine", x."user", x.state, x.threads, x."cpuCores", x."cpuSeconds",
-                       x."memoryBytes", x."gpuPercent", x."gpuMemoryBytes", x."readBytesPerSecond", x."writeBytesPerSecond", x."readBytesTotal", x."writeBytesTotal",
-                       x."parentPid"
-                from jsonb_to_recordset(@processes::jsonb) as x(
-                    pid int, "startedAt" timestamptz, name text, "commandLine" text, "user" text, state text, threads int, "cpuCores" float8,
-                    "cpuSeconds" float8, "memoryBytes" bigint, "gpuPercent" float8, "gpuMemoryBytes" bigint, "readBytesPerSecond" float8,
-                    "writeBytesPerSecond" float8, "readBytesTotal" bigint, "writeBytesTotal" bigint, "parentPid" int)
-                on conflict do nothing
+                update containers
+                set last_seen = now(), stopped_at = null, processes = @processes::jsonb, network = @network::jsonb,
+                    detail = case when @sampled then @detail::jsonb else detail end
+                where container_id = @container
                 """,
-                ("container", identity.ContainerId), ("processes", processes)));
+                ("container", identity.ContainerId),
+                ("processes", JsonSerializer.Serialize(state.Processes, SoundingJson.Stored.IReadOnlyListProcessUsage)),
+                ("network", JsonSerializer.Serialize(state.Network, SoundingJson.Stored.NetworkActivity)),
+                ("sampled", newest.Usage is not null), ("detail", newest.Detail)));
+            latest = state.Detail is null ? null : JsonSerializer.Serialize(Latest(state.Detail), SoundingJson.Stored.ContainerDetail);
+            if (latest != _latestWritten)
+            {
+                batch.BatchCommands.Add(Command(
+                    "update containers set latest = @latest::jsonb where container_id = @container",
+                    ("container", identity.ContainerId), ("latest", latest)));
+            }
         }
 
-        if (usage is not null)
+        foreach (var tick in history)
         {
-            batch.BatchCommands.Add(Command(ContainerSampleSql,
-                ("container", identity.ContainerId), ("cpuPercent", usage.CpuPercentOfHost), ("cpuCores", usage.CpuCores),
-                ("cpuLimit", usage.CpuLimitCores), ("memory", usage.MemoryBytes), ("memoryLimit", usage.MemoryLimitBytes),
-                ("ioRead", usage.IoReadBytesPerSecond), ("ioWrite", usage.IoWriteBytesPerSecond),
-                ("netRx", usage.NetReceiveBytesPerSecond), ("netTx", usage.NetTransmitBytesPerSecond),
-                ("gpuPercent", usage.GpuPercent), ("gpuMemory", usage.GpuMemoryBytes), ("diskUsed", usage.DiskUsedBytes),
-                ("detail", detail)));
+            var ts = tick.At + _clockOffset;
+            if (tick.ProcessHistory is { } processes)
+            {
+                batch.BatchCommands.Add(Command("""
+                    insert into process_samples (container_id, ts, pid, started_at, name, command, user_name, state, threads, cpu_cores, cpu_seconds,
+                                                 memory_bytes, gpu_percent, gpu_memory_bytes, read_bps, write_bps, read_bytes, write_bytes, parent_pid)
+                    select @container, @ts, x.pid, x."startedAt", x.name, x."commandLine", x."user", x.state, x.threads, x."cpuCores", x."cpuSeconds",
+                           x."memoryBytes", x."gpuPercent", x."gpuMemoryBytes", x."readBytesPerSecond", x."writeBytesPerSecond", x."readBytesTotal", x."writeBytesTotal",
+                           x."parentPid"
+                    from jsonb_to_recordset(@processes::jsonb) as x(
+                        pid int, "startedAt" timestamptz, name text, "commandLine" text, "user" text, state text, threads int, "cpuCores" float8,
+                        "cpuSeconds" float8, "memoryBytes" bigint, "gpuPercent" float8, "gpuMemoryBytes" bigint, "readBytesPerSecond" float8,
+                        "writeBytesPerSecond" float8, "readBytesTotal" bigint, "writeBytesTotal" bigint, "parentPid" int)
+                    on conflict do nothing
+                    """,
+                    ("container", identity.ContainerId), ("ts", ts), ("processes", processes)));
+            }
+
+            if (tick.Usage is { } usage)
+            {
+                batch.BatchCommands.Add(Command(_containerSampleSql,
+                    ("container", identity.ContainerId), ("ts", ts), ("cpuPercent", usage.CpuPercentOfHost), ("cpuCores", usage.CpuCores),
+                    ("cpuLimit", usage.CpuLimitCores), ("memory", usage.MemoryBytes), ("memoryLimit", usage.MemoryLimitBytes),
+                    ("ioRead", usage.IoReadBytesPerSecond), ("ioWrite", usage.IoWriteBytesPerSecond),
+                    ("netRx", usage.NetReceiveBytesPerSecond), ("netTx", usage.NetTransmitBytesPerSecond),
+                    ("gpuPercent", usage.GpuPercent), ("gpuMemory", usage.GpuMemoryBytes), ("diskUsed", usage.DiskUsedBytes),
+                    ("detail", tick.Detail)));
+            }
         }
 
-        foreach (var (part, data) in host.Parts)
+        // The parts are what this agent sees of the host now: the newest only.
+        foreach (var (part, data) in newest.Parts ?? new Dictionary<string, string>())
         {
             batch.BatchCommands.Add(Command("""
                 insert into host_parts (host_id, part, ts, container_id, data)
@@ -197,27 +215,47 @@ public sealed class AgentRepository(AgentConnection database, HostIdentity ident
                 ("host", identity.HostId), ("part", part), ("container", identity.ContainerId), ("data", data)));
         }
 
-        if (host.Snapshot is { } snapshot)
+        foreach (var tick in history)
         {
-            batch.BatchCommands.Add(Command(HostSampleSql,
-                ("host", identity.HostId), ("container", identity.ContainerId), ("stale", _staleAfter), ("partsFresh", _partsFresh),
-                ("snapshot", JsonSerializer.Serialize(snapshot, SoundingJson.Stored.HostSnapshot))));
+            if (tick.HostSnapshot is { } snapshot)
+            {
+                batch.BatchCommands.Add(Command(_hostSampleSql,
+                    ("host", identity.HostId), ("container", identity.ContainerId), ("ts", tick.At + _clockOffset),
+                    ("stale", _staleAfter), ("partsFresh", _partsFresh), ("snapshot", snapshot)));
+            }
         }
 
         // After the containers update, in the order the schema statements lock the tables.
-        foreach (var e in events)
+        foreach (var tick in history)
         {
-            batch.BatchCommands.Add(Event(e));
+            foreach (var e in tick.Events)
+            {
+                batch.BatchCommands.Add(Event(e, tick.At + _clockOffset));
+            }
         }
 
         batch.BatchCommands.Add(Notify());
-        await batch.ExecuteNonQueryAsync(cancellationToken);
-        _latestWritten = latest;
+        await ExecuteTimedAsync(batch, cancellationToken);
+        if (newest.State is not null) _latestWritten = latest;
+    }
+
+    // Runs a batch that starts with "select now()", and keeps how far the database's clock is from the agent's.
+    private async Task ExecuteTimedAsync(NpgsqlBatch batch, CancellationToken cancellationToken)
+    {
+        var sent = DateTimeOffset.UtcNow;
+        await using var reader = await batch.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        var now = reader.GetFieldValue<DateTimeOffset>(0);
+        while (await reader.NextResultAsync(cancellationToken))
+        {
+        }
+
+        _clockOffset = now - sent;
     }
 
     // Each sample keeps what is charted over time; the rest is only shown as it is now, stored on the container's
     // row (latest) and merged back by the dashboard.
-    private static ContainerDetail PerSample(ContainerDetail d) => d with
+    public static ContainerDetail PerSample(ContainerDetail d) => d with
     {
         Cpuset = null, TasksLimit = null, MemoryEvents = null, GpuMemoryPeakBytes = null, LargestPaths = null, FileCount = null,
         GpuKernels = null, GpuAllocationFailures = null, Mounts = null, DiskGrowthBytesPerHour = null, DiskFreeBytes = null,
@@ -274,9 +312,9 @@ public sealed class AgentRepository(AgentConnection database, HostIdentity ident
     private const double PossibleOutOfMemoryShare = 0.9;
     private static readonly TimeSpan PossibleOutOfMemoryAge = TimeSpan.FromMinutes(5);
 
-    private NpgsqlBatchCommand Event(AgentEvent e) => Command(
-        "insert into events (host_id, container_id, ts, kind, level, message) values (@host, @container, now(), @kind, @level, @message)",
-        ("host", identity.HostId), ("container", identity.ContainerId), ("kind", e.Kind), ("level", e.Level), ("message", e.Message));
+    private NpgsqlBatchCommand Event(AgentEvent e, DateTimeOffset? at = null) => Command(
+        "insert into events (host_id, container_id, ts, kind, level, message) values (@host, @container, coalesce(@ts, now()), @kind, @level, @message)",
+        ("host", identity.HostId), ("container", identity.ContainerId), ("ts", at), ("kind", e.Kind), ("level", e.Level), ("message", e.Message));
 
     // The oldest capture the dashboard asked this container for, now marked as running.
     public async Task<(long Id, int Seconds)?> TakeCaptureRequestAsync(CancellationToken cancellationToken)
@@ -308,44 +346,6 @@ public sealed class AgentRepository(AgentConnection database, HostIdentity ident
             ? new NpgsqlParameter<ReadOnlyMemory<byte>>("data", NpgsqlTypes.NpgsqlDbType.Bytea) { TypedValue = file }
             : new NpgsqlParameter("data", NpgsqlTypes.NpgsqlDbType.Bytea) { Value = DBNull.Value });
         await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public async Task PruneAsync(TimeSpan retention, CancellationToken cancellationToken)
-    {
-        await using var batch = new NpgsqlBatch(await database.GetAsync(cancellationToken));
-        // Persist this host's policy so another host never applies its own retention to our data.
-        batch.BatchCommands.Add(Command("update hosts set retention = @retention where host_id = @host",
-            ("host", identity.HostId), ("retention", retention)));
-        batch.BatchCommands.Add(Command(
-            "delete from host_samples where host_id = @host and ts < now() - @retention",
-            ("host", identity.HostId), ("retention", retention)));
-        batch.BatchCommands.Add(Command("""
-            delete from container_samples s using containers c
-            where c.container_id = s.container_id and c.host_id = @host and s.ts < now() - @retention
-            """,
-            ("host", identity.HostId), ("retention", retention)));
-        batch.BatchCommands.Add(Command("""
-            delete from process_samples s using containers c
-            where c.container_id = s.container_id and c.host_id = @host and s.ts < now() - @retention
-            """,
-            ("host", identity.HostId), ("retention", retention)));
-        batch.BatchCommands.Add(Command(
-            "delete from events where host_id = @host and ts < now() - @retention",
-            ("host", identity.HostId), ("retention", retention)));
-        batch.BatchCommands.Add(Command("""
-            delete from captures p using containers c
-            where c.container_id = p.container_id and c.host_id = @host and p.requested_at < now() - @retention
-            """,
-            ("host", identity.HostId), ("retention", retention)));
-        batch.BatchCommands.Add(Command(
-            "delete from containers where host_id = @host and last_seen < now() - @retention",
-            ("host", identity.HostId), ("retention", retention)));
-        batch.BatchCommands.Add(Command("""
-            delete from hosts h
-            where h.host_id <> @host and h.retention is not null and h.last_seen < now() - h.retention
-              and not exists (select 1 from containers c where c.host_id = h.host_id and c.last_seen >= now() - h.retention)
-            """, ("host", identity.HostId)));
-        await batch.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task MarkStoppedAsync(ExitStatus? exit, CancellationToken cancellationToken)

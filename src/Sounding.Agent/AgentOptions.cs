@@ -60,8 +60,9 @@ public sealed class AgentOptions
     [ConfigurationKeyName("CLUSTER_DOMAIN")]
     public string ClusterDomain { get; set; } = "cluster.local";
 
-    [ConfigurationKeyName("RETENTION_MINUTES")]
-    public int RetentionMinutes { get; set; } = 1440;
+    // How long samples are kept in memory while the database can't be reached or has no schema yet.
+    [ConfigurationKeyName("BUFFER_MINUTES")]
+    public int BufferMinutes { get; set; } = 15;
 
     [ConfigurationKeyName("DISKS")]
     public List<DiskTarget> Disks { get; set; } = [];

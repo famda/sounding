@@ -1,10 +1,11 @@
 namespace Sounding.Shared;
 
 // A value kept of every sample, as a number in its own column: its column, how the agent's insert reads it out
-// of the sample's JSON, and the name of its series in the dashboard's detail history (none when it has no such
-// series). The schema, the agents' inserts and the dashboard's queries are all written from these lists, so a
-// value is read out of the JSON once, when it is stored, and never again.
-public sealed record SampleColumn(string Column, string Sql, string? Series = null);
+// of the sample's JSON, the name of its series in the dashboard's detail history (none when it has no such
+// series), and the schema version that added it. The schema, the agents' inserts and the dashboard's queries are all
+// written from these lists, so a value is read out of the JSON once, when it is stored, and never again.
+// A new column gets the next schema version and a migration that adds it: never change a released column.
+public sealed record SampleColumn(string Column, string Sql, string? Series = null, int Since = 1);
 
 public static class SampleColumns
 {

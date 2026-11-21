@@ -23,8 +23,14 @@ Work through these in order:
 1. **The image doesn't start through Sounding.** Check that the image contains `/opt/sounding` and that its
    `ENTRYPOINT` starts with `/opt/sounding/run`. See
    [add the agent to your image](../deployment/docker-compose.md#1-add-the-agent-to-your-image).
-2. **The agent can't reach the database.** Look in the container's logs for connection errors. Your application keeps
-   running even when the agent can't connect, so a working application doesn't mean Sounding is working.
+2. **The agent can't write to the database.** Look in the container's logs for `Keeping samples in memory:` and the
+   reason after it. Your application keeps running meanwhile, so a working application doesn't mean Sounding is working.
+   - A connection error: the database is down or unreachable from the container.
+   - `the Sounding dashboard hasn't created the database schema yet`: start the dashboard; it creates the tables.
+   - `permission denied`: the agents' user is missing permissions. Set `SOUNDING_AGENT_ROLE` on the dashboard; see
+     [give the agents their own user](../operate/set-up-the-database.md#give-the-agents-their-own-user).
+
+   The agent writes what it held in memory once the cause is fixed.
 3. **The connection string points to `localhost`.** Inside a container, `localhost` is the container itself. Use the
    database's host name.
 4. **The container and the dashboard use different databases.** Check that their connection strings point to the same
@@ -59,6 +65,9 @@ After correcting the cause, open the container and check that fresh samples appe
   reachable.
 - **Stale data**: the dashboard is reachable but has had no new figures for more than 10 seconds. Check the dashboard's
   logs and its connection to the database.
+- **The dashboard stops right after starting**: its log says why. Its version is older than Sounding's tables in the
+  database (upgrade the dashboard), the tables were changed outside Sounding, or the database already has a `hosts`
+  table that Sounding didn't create (use an empty database).
 
 The last figures stay on screen until the dashboard recovers.
 

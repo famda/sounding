@@ -43,8 +43,12 @@ DROP USER sounding;
 If Sounding shares a database with other data, delete only Sounding's tables:
 
 ```sql
-DROP TABLE captures, events, process_samples, container_samples, host_samples, host_parts, containers, hosts;
+DROP TABLE captures, events, process_samples, container_samples, host_samples, host_parts, containers, hosts, schema_migrations;
 ```
+
+The three sample tables are split into one table per hour, which go with them. If you
+[gave the agents their own user](set-up-the-database.md#give-the-agents-their-own-user), delete it too:
+`DROP USER sounding_agent;`.
 
 ## On Kubernetes
 

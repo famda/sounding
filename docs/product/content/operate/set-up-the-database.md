@@ -11,9 +11,10 @@ same machine, on another server, or in the cloud.
 
 You need **PostgreSQL 14 or later**.
 
-Create a database and a user for Sounding, and make the user the database's owner. Sounding creates its tables the first
-time an agent or the dashboard connects, so the user needs permission to create tables as well as to read and write
-data.
+Create a database and a user for Sounding, and make the user the database's owner. The dashboard creates Sounding's
+tables when it first starts and keeps them up to date when you upgrade it, so its user needs permission to create tables
+as well as to read and write data. The agents never change the tables: they can use the same user, or
+[a restricted one](#give-the-agents-their-own-user).
 
 ```sql
 CREATE USER sounding WITH PASSWORD 'choose-a-password';
@@ -66,6 +67,32 @@ Host=db.example.com;Database=sounding;Username=sounding;Password=choose-a-passwo
 Your database provider publishes its CA certificate. Check that each container connects after the change: one that
 can't verify the server stops reporting, and its messages say why.
 
+## Give the agents their own user
+
+Every container with the agent holds a connection string. With the dashboard's user, whoever gets into one of your
+containers can read Sounding's data, delete it, and change its tables. A user of the agents' own limits that to what
+an agent does: it adds its samples, keeps its container's and host's details current, and answers packet capture
+requests. It can't delete anything or change a table.
+
+1. Create the user, with a strong password of its own:
+
+   ```sql
+   CREATE USER sounding_agent WITH PASSWORD 'choose-another-password';
+   ```
+
+2. Tell the dashboard its name with `SOUNDING_AGENT_ROLE=sounding_agent`, and restart the dashboard. On every start it
+   grants that user what agents need, including on tables added by later versions. Its log says
+   `Granted the agents' role sounding_agent what agents need`.
+
+3. Give the agents a connection string with that user, and keep the dashboard on its own:
+
+   ```text
+   Host=db.example.com;Database=sounding;Username=sounding_agent;Password=choose-another-password
+   ```
+
+Each container you redeploy with the new connection string keeps reporting as before. If the user is missing a
+permission, the agent's log says `Keeping samples in memory: permission denied …`.
+
 ## Connection poolers
 
 Each agent keeps a single connection open. A connection pooler such as PgBouncer works in **session** mode. Don't use
@@ -78,7 +105,9 @@ That takes about 50 MB of disk per container, about 5 MB more for each process i
 hundred containers running ten processes each need about 10 GB. To use less, keep less history or measure less often; see
 [configuration settings](../reference/configuration.md#sampling-and-history).
 
-If the database is unreachable, your applications keep running, but figures taken in the meantime are lost.
+If the database is unreachable, your applications keep running. Each agent keeps measuring and holds its figures in
+memory, by default for 15 minutes (`SOUNDING_BUFFER_MINUTES`), then writes them once it reaches the database again.
+Figures older than that are dropped, oldest first, and their charts show a gap.
 
 ## Next steps
 

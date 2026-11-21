@@ -20,6 +20,9 @@ builder.Services.AddSingleton<FleetSnapshot>();
 builder.Services.AddSingleton<NetworkReader>();
 builder.Services.AddSingleton(new SoundingDatabase(builder.Configuration["CONNECTION_STRING"]));
 builder.Services.AddSingleton<FleetFreshness>();
+builder.Services.AddSingleton<DatabaseState>();
+builder.Services.AddSingleton<DatabaseMaintenance>();
+builder.Services.AddHostedService<DatabaseSetup>();
 builder.Services.AddHostedService<FleetMonitor>();
 
 // Wolverine only dispatches queries and commands in process: no transports, inbox, outbox or node persistence.

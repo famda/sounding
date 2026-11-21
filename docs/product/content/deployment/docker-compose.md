@@ -120,7 +120,7 @@ include `default` or attach `db` to the same network so the agent can reach it.
 > [!TIP]
 > **Already have PostgreSQL?** Skip the `db` service and `sounding-db` volume, and remove the dashboard's
 > `depends_on` block. Set `SOUNDING_CONNECTION_STRING` in `x-sounding` to your database's connection string; every
-> service that uses `<<: *sounding` picks it up. Sounding creates its tables automatically on first connect. Inside a
+> service that uses `<<: *sounding` picks it up. The dashboard creates Sounding's tables when it first starts. Inside a
 > container, `localhost` is the container itself, so use a reachable host name. See
 > [set up the database](../operate/set-up-the-database.md).
 

@@ -23,13 +23,15 @@ Network, disk-space, and GPU reporting each have their own role, held by one con
 these can be different containers. When an agent's database session ends, another eligible agent can take its roles
 on its next sampling tick. Rates need fresh samples, so takeover isn't guaranteed within one second.
 
-If the agent can't run or reach the database, your application keeps running. Only the monitoring stops.
+If the agent can't run, your application keeps running; only the monitoring stops. If it can't reach the database, it
+keeps measuring and holds what it measures in memory, by default for 15 minutes, then writes it once the database is
+back.
 
 ## The database
 
-All agents and the dashboard use one PostgreSQL database that you provide. The default retention target is 24 hours;
-running host-sampling agents periodically delete older data. The dashboard alone doesn't perform this cleanup.
-The database is the only destination for collected metrics.
+All agents and the dashboard use one PostgreSQL database that you provide. The dashboard looks after it: it creates
+Sounding's tables, updates them when you upgrade, and deletes data older than 24 hours by default. The agents only
+add what they measure. The database is the only destination for collected metrics.
 
 See [set up the database](../operate/set-up-the-database.md).
 
@@ -37,7 +39,8 @@ See [set up the database](../operate/set-up-the-database.md).
 
 The dashboard reads the database and pushes updates to your browser as they arrive. With the default one-second
 sampling interval, figures are usually about a second old. It stores nothing itself: you can restart it, or run several,
-without losing anything.
+without losing anything. While no dashboard runs, agents keep writing, but nothing old is deleted until one starts
+again.
 
 ## What Sounding sees, and what it doesn't
 

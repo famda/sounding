@@ -15,4 +15,12 @@ public sealed class DashboardOptions
 
     [ConfigurationKeyName("HIDE_STOPPED_CONTAINERS_AFTER_MINUTES")]
     public int HideStoppedContainersAfterMinutes { get; set; } = 2;
+
+    // Samples are kept in whole hours: between this and one hour more.
+    [ConfigurationKeyName("RETENTION_HOURS")]
+    public int RetentionHours { get; set; } = 24;
+
+    // A database role the agents connect as: the dashboard grants it what agents need, and nothing more.
+    [ConfigurationKeyName("AGENT_ROLE")]
+    public string? AgentRole { get; set; }
 }

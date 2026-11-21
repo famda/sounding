@@ -1,99 +1,99 @@
 {
   "ambiguous": {
     "format": 2,
-    "sha256": "a79cccedf443fc97cdc1ec7a45f4db5c7af4126b7bde5424851ec719bbb734f8",
+    "sha256": "4b2b7a0315bef2f70270b553a836c2505c01075079b55677ce5793c23f5669a0",
     "observedAt": "2026-11-13 07:40:35.457065+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "none",
     "settle": 0,
     "adopted": "2026-11-13T12:40:23Z"
   },
   "cache-down": {
     "format": 2,
-    "sha256": "e9ecb3279854853c815af022df5b77f6b6405a2c937f1d2cd708c0537ceb7daa",
+    "sha256": "c7851b1fb2ee1e8fb79aa7b7935bce40b474ebe117e2ee849469b519d38a51b9",
     "observedAt": "2026-11-13 07:57:41.398971+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "stopped-cache",
     "settle": 75,
     "adopted": "2026-11-13T12:40:49Z"
   },
   "disk-filling": {
     "format": 2,
-    "sha256": "591ab644adf955d93da21488e6b4b8a25861efcecdb07a9b7591714471bab155",
+    "sha256": "5a7058199a017517b932115209c9a5b6580a990c8f1a40afec49adcb57cfda02",
     "observedAt": "2026-11-13 08:05:17.125834+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "disk",
     "settle": 150,
     "adopted": "2026-11-13T12:40:58Z"
   },
   "frozen-service": {
     "format": 2,
-    "sha256": "ce03994098362eb088251e87cde743cf7d39dbe2158bbb9de764cfcece81e8b9",
+    "sha256": "1a0cd8d710d1b39e6247314655f097a52bbe61a56228197101e31c03c2537ad7",
     "observedAt": "2026-11-13 08:00:59.091288+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "frozen-catalog",
     "settle": 90,
     "adopted": "2026-11-13T12:40:53Z"
   },
   "healthy": {
     "format": 2,
-    "sha256": "1ae1ca9e07cb4662e4a633d2751293aae248356abde9073d325782ee96e31e12",
+    "sha256": "4d76623ddc7738497c0bf5288ce52e7bd31ffe217ed27447bd2426521db3ba9a",
     "observedAt": "2026-11-13 07:38:48.694397+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "none",
     "settle": 0,
     "adopted": "2026-11-13T12:40:18Z"
   },
   "memory-headroom": {
     "format": 2,
-    "sha256": "62de64e20640fd2b4303d416a74129cf0817d196ff48f5803e47772e025c03d5",
+    "sha256": "e9ff202b76b4b646159042070d0975157d8e4a022848011425c0b1039ec232cd",
     "observedAt": "2026-11-13 08:13:36.020923+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "near-limit",
     "settle": 90,
     "adopted": "2026-11-13T12:41:08Z"
   },
   "noisy-neighbour": {
     "format": 2,
-    "sha256": "da6c0eba5f23dfa7d6d8fdda9be0be37da4abcaa5c30f1fce958479ebc150b79",
+    "sha256": "8c2eec27cd8ce161202fe59c4b34416fc54b43daf3d80a48721c99c76bb12d73",
     "observedAt": "2026-11-13 07:50:18.068561+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "hog",
     "settle": 90,
     "adopted": "2026-11-13T12:40:39Z"
   },
   "past-outage": {
     "format": 2,
-    "sha256": "b9490c1be363b48991592423114853b87d9076e9af6eb313a16a7855e746c36e",
+    "sha256": "0099d100d402471bcc4b93db48ce75f567b5294a14f90a40c86a3ca37cef511a",
     "observedAt": "2026-11-13 08:10:19.356374+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "orders-leak",
     "settle": 200,
     "adopted": "2026-11-13T12:41:03Z"
   },
   "slow-db": {
     "format": 2,
-    "sha256": "e156639bd16152695e7e65eb47151b629977fc84bf5ca10c698fbf5be96a2460",
+    "sha256": "55fe3446d913a5f13794786f9f658b85e1d097d5e2000974004ae759c1b795f3",
     "observedAt": "2026-11-13 07:44:03.286696+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "slow-db",
     "settle": 100,
     "adopted": "2026-11-13T12:40:29Z"
   },
   "stopped-dependency": {
     "format": 2,
-    "sha256": "ea3cda0d92f592cc7f5cbbe0df35418bc4bbe7c28d13b87be4392ecffaeb0f37",
+    "sha256": "6e7a4ae5bf0911bcc814510187d23c253a8a74f2201a88b38035f140ef2c4c48",
     "observedAt": "2026-11-13 07:47:05.815176+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "stopped-catalog",
     "settle": 75,
     "adopted": "2026-11-13T12:40:33Z"
   },
   "two-problems": {
     "format": 2,
-    "sha256": "870d8a5d0d9b7098ac0206607526b7eb9ac3c5bac703fe78a6ac4b6b598ce0af",
+    "sha256": "2598a40678dc264d2ca3b8d6521bb2f6b2f32f7056bae26480035c35b995468b",
     "observedAt": "2026-11-13 07:54:37.302758+00",
-    "schema": "72c43745f516da32982c7139119ab200",
+    "schema": "94c6b8638b47513fce378cb37c9775f5",
     "fault": "leak+slow-db",
     "settle": 150,
     "adopted": "2026-11-13T12:40:44Z"

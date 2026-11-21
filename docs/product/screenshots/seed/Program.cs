@@ -20,7 +20,7 @@ if (new NpgsqlConnectionStringBuilder(connectionString).Database != "sounding_do
 }
 
 await using var database = NpgsqlDataSource.Create(connectionString);
-await DatabaseSchema.EnsureAsync(database, CancellationToken.None);
+await DatabaseSchema.MigrateAsync(database, CancellationToken.None);
 DemoHost[] hosts = standalone
     ? [new DemoHost("sounding-demo", "demo-host", 4, 8 * GiB, 1, ["web-1", "client-1"])]
     : [
@@ -131,9 +131,9 @@ void Samples(NpgsqlBatch batch, DateTimeOffset time, double seconds)
         Add(batch, $$"""
             with merged as materialized (select $4::jsonb as s),
             sample as (
-                insert into host_samples (host_id, ts, container_id, {{string.Join(", ", SampleColumns.Host.Select(c => c.Column))}},
+                insert into host_samples (host_id, ts, {{string.Join(", ", SampleColumns.Host.Select(c => c.Column))}},
                                           cores, gpus, temperatures)
-                select $1, $2, $3, {{string.Join(", ", SampleColumns.Host.Select(c => c.Sql))}},
+                select $1, $2, {{string.Join(", ", SampleColumns.Host.Select(c => c.Sql))}},
                        {{SampleColumns.HostCoresSql}}, {{SampleColumns.HostGpusSql}}, {{SampleColumns.HostTemperaturesSql}}
                 from merged
             )

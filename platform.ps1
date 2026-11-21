@@ -165,6 +165,7 @@ function Show-DevUrls {
     Write-Host '  Dashboard         http://localhost:8080'
     Write-Host '  REST API          http://localhost:8080/api/docs'
     Write-Host '  MCP endpoint      http://localhost:8080/mcp'
+    Write-Host '  pgAdmin           http://localhost:5050 (Sounding database registered)'
     Write-Host '  MCP Inspector     http://localhost:6274 (Sounding already listed)'
     Write-Host '  Chat              http://localhost:3000 (local model, Sounding tools on)'
 }
@@ -205,7 +206,7 @@ function Invoke-Start {
 
     Write-Step 'Starting'
     Assert-ModelsVolume
-    Invoke-Docker ($compose + $up + @('db', 'dashboard', 'mcp-inspector', 'chat', 'chat-model', 'chat-model-pull'))
+    Invoke-Docker ($compose + $up + @('db', 'dashboard', 'pgadmin', 'mcp-inspector', 'chat', 'chat-model', 'chat-model-pull'))
     Write-Step $(if ($script:HasGpu) { 'Starting the samples, with ollama on the NVIDIA GPU' } else { 'Starting the samples (no NVIDIA GPU: ollama skipped)' })
     Invoke-Docker ($samples + $up)
 

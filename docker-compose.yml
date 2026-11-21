@@ -52,6 +52,29 @@ services:
       - dashboard
     restart: unless-stopped
 
+  # Development tool: pgAdmin on http://localhost:5050 with Sounding's database registered; right-click the sounding
+  # database and choose ERD For Database for a diagram of the schema. Only started with the "tools" profile.
+  pgadmin:
+    image: dpage/pgadmin4:9.19
+    profiles: [tools]
+    ports: ["127.0.0.1:5050:80"]
+    environment:
+      # Desktop mode: no pgAdmin sign-in. Dev only, and safe only because the port is bound to loopback.
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      # Required by the image, and never used to sign in in desktop mode.
+      PGADMIN_DEFAULT_EMAIL: dev@example.com
+      PGADMIN_DEFAULT_PASSWORD: unused-in-desktop-mode
+      # libpq reads it when connecting to the registered server, so pgAdmin never asks for it.
+      PGPASSWORD: ${SOUNDING_DB_PASSWORD}
+    configs:
+      - source: pgadmin-servers
+        target: /pgadmin4/servers.json
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   # Development tool: a chat app with a local model, connected to the dashboard's MCP endpoint, to try questions by
   # hand. Only started with the "tools" profile; opens on http://localhost:3000 with no sign-in and Sounding's tools
   # switched on in every chat. Outside the samples, so the model's load is not in the data it is asked about.
@@ -95,6 +118,12 @@ services:
     command: ["pull", "qwen3.5:9b"]
     depends_on: [chat-model]
     restart: on-failure
+
+configs:
+  pgadmin-servers:
+    content: |
+      {"Servers": {"1": {"Name": "Sounding", "Group": "Servers", "Host": "db", "Port": 5432, "MaintenanceDB": "sounding",
+                         "Username": "sounding"}}}
 
 volumes:
   pgdata:

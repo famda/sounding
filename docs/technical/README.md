@@ -12,6 +12,7 @@ them to a web dashboard. See [product documentation](../product/README.md) for u
 | Dashboard MCP server | MCP C# SDK 2.4 (`ModelContextProtocol.AspNetCore`), Streamable HTTP, stateless |
 | Dashboard frontend | React 19, Tailwind CSS 4 and Vite |
 | MCP Inspector (dev tool) | `ghcr.io/modelcontextprotocol/inspector:2.15.0` |
+| pgAdmin (dev tool) | `dpage/pgadmin4:9.19`, desktop mode (no sign-in), Sounding's database registered |
 | Chat (dev tool) | Open WebUI `ghcr.io/open-webui/open-webui:v0.13.3` with Ollama `ollama/ollama:0.40.16` and `qwen3.5:9b` |
 | Database | PostgreSQL 18 |
 | Documentation site | Next.js 16 static export; Node.js 24 in Docker |
@@ -21,13 +22,13 @@ them to a web dashboard. See [product documentation](../product/README.md) for u
 
 | Compose file | Services | Local URL |
 | --- | --- | --- |
-| [Solution](../../docker-compose.yml) | `db`, `dashboard`; `mcp-inspector`, `chat`, `chat-model` and `chat-model-pull` in the `tools` profile | Dashboard <http://localhost:8080> (REST `/api/v1`, OpenAPI `/openapi/v1.json`, MCP `/mcp`); Inspector <http://localhost:6274>; Chat <http://localhost:3000> |
+| [Solution](../../docker-compose.yml) | `db`, `dashboard`; `pgadmin`, `mcp-inspector`, `chat`, `chat-model` and `chat-model-pull` in the `tools` profile | Dashboard <http://localhost:8080> (REST `/api/v1`, OpenAPI `/openapi/v1.json`, MCP `/mcp`); pgAdmin <http://localhost:5050> (right-click the `sounding` database, **ERD For Database**, for the schema diagram); Inspector <http://localhost:6274>; Chat <http://localhost:3000> |
 | [Samples](../../samples/compose/docker-compose.yml) | A simulated shop platform, every container agent-wrapped (see [below](#samples)) | Dashboard above; shop at <http://localhost:8088> |
 | [Kubernetes sample](../../samples/kubernetes/) (manifests, not Compose) | Sounding and a two-service demo on a cluster (see [Kubernetes sample](#kubernetes-sample)) | `kubectl port-forward` |
 | [Screenshot capture](../product/screenshots/compose.yaml) | Ephemeral `db`, `dashboard`, `capture` | Internal network only |
 | [Documentation site](../product/site/compose.yaml) | One-shot `build`; background `preview` | <http://localhost:4321/sounding/> |
 
-Agents write to PostgreSQL; the dashboard reads the database and sends Server-Sent Events to browsers. It also
+Agents write to PostgreSQL; the dashboard owns its schema and retention (see [Database](architecture.md#database)), reads the database and sends Server-Sent Events to browsers. It also
 serves the same data to other applications over REST and to AI agents over MCP; see
 [Dashboard API and MCP server](api.md).
 These stacks do not configure an OpenTelemetry collector or Aspire dashboard.
@@ -157,7 +158,7 @@ Signatures can be checked with
 
 The dashboard has no built-in authentication, and neither do its REST API (`/api/v1`) and MCP endpoint (`/mcp`): anyone
 who reaches port 8080 can read everything and request packet captures over REST. MCP tools are read-only. Keep the
-samples and dashboard private; the docs preview and MCP Inspector bind only to loopback. On Kubernetes the
+samples and dashboard private; the docs preview, pgAdmin and MCP Inspector bind only to loopback. On Kubernetes the
 [sample's NetworkPolicy](../../samples/kubernetes/sounding.yaml) stands in for loopback binding where the network plugin enforces it. Store local settings in the
 untracked `.env` file.
 

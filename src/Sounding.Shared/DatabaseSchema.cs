@@ -1,6 +1,24 @@
+using System.Security.Cryptography;
+using System.Text;
 using Npgsql;
 
 namespace Sounding.Shared;
+
+// One step of the schema. Never edit a released migration: its checksum is recorded when it is applied, and a
+// database whose recorded steps differ from the dashboard's refuses to start. AgentsFrom is the oldest schema version
+// an agent may be built for once this step is applied: raise it only for a change older agents can't write to.
+public sealed record SchemaMigration(int Version, string Name, string Sql, int AgentsFrom = 1)
+{
+    public string Checksum { get; } = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Sql.ReplaceLineEndings("\n"))));
+}
+
+public enum SchemaState { Missing, Ready, AgentTooOld, DatabaseTooOld }
+
+public readonly record struct SchemaStatus(SchemaState State, int Version);
+
+// A database the dashboard must not run against: its schema is newer, was changed outside the migrations, or
+// holds tables Sounding didn't create.
+public sealed class SchemaException(string message) : Exception(message);
 
 public static class DatabaseSchema
 {
@@ -22,192 +40,284 @@ public static class DatabaseSchema
             (status = 'running' and coalesce(started_at, requested_at) + make_interval(secs => seconds + 30) < now()))
         """;
 
-    private const long SchemaLockKey = 0x536F_756E_6469_6E67;
+    // Sample tables are partitioned by the hour of ts: retention drops whole partitions instead of deleting rows.
+    public static readonly string[] PartitionedTables = ["host_samples", "container_samples", "process_samples"];
 
-    // Kept as the hosts table's comment: when it matches, the statements below aren't run again. Even an
-    // "if not exists" index takes a table lock, which every agent registering would otherwise contend for.
-    private const string Version = "sounding schema 4";
+    // The oldest schema version this agent writes to: version 1 has every table it uses, and the columns added since
+    // are written only where the database has them (SampleColumn.Since).
+    public const int AgentMinimum = 1;
 
-    private static readonly string Sql = $"""
-        create table if not exists hosts (
+    private const long MigrationLockKey = 0x536F_756E_6469_6E67;
+
+    public static readonly SchemaMigration[] Migrations =
+    [
+        new(1, "Hosts, containers, samples, events and captures", Initial()),
+    ];
+
+    public static int Version => Migrations[^1].Version;
+
+    // Fixed-width columns first, widest first, so rows carry no alignment padding; variable-width ones last.
+    private static string Initial() => $"""
+        create table hosts (
+            first_seen              timestamptz not null default now(),
+            last_seen               timestamptz not null default now(),
+            latest_ts               timestamptz,
             host_id                 text primary key,
             display_name            text not null,
             kernel                  text,
             leader_container_id     text,
-            first_seen              timestamptz not null default now(),
-            last_seen               timestamptz not null default now()
+            latest_container_id     text,
+            latest                  jsonb
         );
 
-        create table if not exists containers (
-            container_id            text primary key,
-            host_id                 text not null references hosts (host_id) on delete cascade,
-            name                    text,
+        create table containers (
             started_at              timestamptz not null,
             last_seen               timestamptz not null,
             stopped_at              timestamptz,
             process_started_at      timestamptz,
+            stop_seconds            double precision,
             restarts                int not null default 0,
             exit_code               int,
             exit_signal             int,
-            stop_seconds            double precision,
+            container_id            text primary key,
+            host_id                 text not null references hosts (host_id) on delete cascade,
+            name                    text,
             processes               jsonb,
             network                 jsonb,
+            detail                  jsonb,
             latest                  jsonb
         );
-        alter table hosts add column if not exists retention interval;
-        -- The latest sample whole, for what is shown as it is now: the samples tables keep what is charted over time.
-        alter table hosts add column if not exists latest jsonb;
-        alter table hosts add column if not exists latest_ts timestamptz;
-        alter table hosts add column if not exists latest_container_id text;
-        alter table containers add column if not exists detail jsonb;
-        create index if not exists containers_host_id on containers (host_id);
+        create index containers_host_id on containers (host_id);
 
-        -- Samples stored before every charted value had a column of its own (schema 3 and older) are dropped.
-        do $$
-        begin
-            if exists (select 1 from information_schema.columns
-                       where table_schema = current_schema() and table_name = 'host_samples' and column_name = 'snapshot') then
-                drop table host_samples;
-            end if;
-            if exists (select 1 from information_schema.columns
-                       where table_schema = current_schema() and table_name = 'container_samples' and column_name = 'detail') then
-                drop table container_samples;
-            end if;
-        end
-        $$;
-
-        -- Fixed-width columns first: a row has no padding between them.
-        create table if not exists host_samples (
+        -- What one agent per host samples of the host for the others (network, GPU, host disk): the latest only.
+        create table host_parts (
             ts                      timestamptz not null,
-            {Columns(SampleColumns.Host)},
-            host_id                 text not null references hosts (host_id) on delete cascade,
-            container_id            text not null,
-            cores                   double precision[],
-            gpus                    jsonb,
-            temperatures            jsonb,
-            primary key (host_id, ts)
-        );
-
-        create table if not exists host_parts (
             host_id                 text not null references hosts (host_id) on delete cascade,
             part                    text not null,
-            ts                      timestamptz not null,
             container_id            text not null,
             data                    jsonb not null,
             primary key (host_id, part)
         );
 
-        create table if not exists container_samples (
+        -- No foreign keys on the samples: a check on every insert, and attaching a partition would lock the hosts and
+        -- containers the agents are updating. Samples go with their partition, before their host or container does.
+        create table host_samples (
+            ts                      timestamptz not null,
+            {Columns(SampleColumns.Host, 1)},
+            host_id                 text not null,
+            cores                   double precision[],
+            gpus                    jsonb,
+            temperatures            jsonb,
+            primary key (host_id, ts)
+        ) partition by range (ts);
+
+        create table container_samples (
             ts                      timestamptz not null,
             cpu_percent_of_host     double precision not null,
             cpu_cores               double precision not null,
             cpu_limit_cores         double precision,
-            memory_bytes            bigint not null,
-            memory_limit_bytes      bigint,
             io_read_bps             double precision not null,
             io_write_bps            double precision not null,
             net_rx_bps              double precision not null,
             net_tx_bps              double precision not null,
             gpu_percent             double precision,
+            {Columns(SampleColumns.ContainerDetail, 1)},
+            memory_bytes            bigint not null,
+            memory_limit_bytes      bigint,
             gpu_memory_bytes        bigint,
             disk_used_bytes         bigint,
-            {Columns(SampleColumns.ContainerDetail)},
-            container_id            text not null references containers (container_id) on delete cascade,
+            container_id            text not null,
             primary key (container_id, ts)
-        );
+        ) partition by range (ts);
 
-        create table if not exists process_samples (
-            container_id            text not null references containers (container_id) on delete cascade,
+        create table process_samples (
             ts                      timestamptz not null,
-            pid                     int not null,
             started_at              timestamptz,
+            cpu_cores               double precision not null,
+            cpu_seconds             double precision,
+            gpu_percent             double precision,
+            read_bps                double precision,
+            write_bps               double precision,
+            memory_bytes            bigint not null,
+            gpu_memory_bytes        bigint,
+            read_bytes              bigint,
+            write_bytes             bigint,
+            pid                     int not null,
+            parent_pid              int,
+            threads                 int not null,
+            container_id            text not null,
             name                    text not null,
             command                 text,
             user_name               text,
             state                   text,
-            threads                 int not null,
-            cpu_cores               double precision not null,
-            cpu_seconds             double precision,
-            memory_bytes            bigint not null,
-            gpu_percent             double precision,
-            gpu_memory_bytes        bigint,
-            read_bps                double precision,
-            write_bps               double precision,
-            read_bytes              bigint,
-            write_bytes             bigint,
             primary key (container_id, ts, pid)
-        );
-        alter table process_samples add column if not exists parent_pid int;
+        ) partition by range (ts);
 
-        create table if not exists events (
+        -- Rows outside every hourly partition (a clock far off, or a dashboard that hasn't run for hours) land here
+        -- instead of failing; the dashboard moves them into their partitions.
+        create table host_samples_default partition of host_samples default;
+        create table container_samples_default partition of container_samples default;
+        create table process_samples_default partition of process_samples default;
+
+        create table events (
+            ts                      timestamptz not null,
             host_id                 text not null references hosts (host_id) on delete cascade,
             container_id            text,
-            ts                      timestamptz not null,
             kind                    text not null,
             level                   text not null,
             message                 text not null
         );
-        create index if not exists events_host_ts on events (host_id, ts);
+        create index events_host_ts on events (host_id, ts);
 
-        create table if not exists captures (
+        create table captures (
             capture_id              bigint generated always as identity primary key,
-            container_id            text not null references containers (container_id) on delete cascade,
             requested_at            timestamptz not null default now(),
-            seconds                 int not null,
-            status                  text not null,
+            started_at              timestamptz,
             finished_at             timestamptz,
+            seconds                 int not null,
             packets                 int,
+            status                  text not null,
+            container_id            text not null references containers (container_id) on delete cascade,
             data                    bytea
         );
-        alter table captures add column if not exists started_at timestamptz;
-        -- Keep the oldest active request when upgrading data created before concurrency was constrained.
-        with active as (
-            select capture_id, row_number() over (partition by container_id order by capture_id) as position
-            from captures where status in ('requested', 'running')
-        )
-        update captures set status = 'failed', finished_at = now()
-        where capture_id in (select capture_id from active where position > 1);
-        create unique index if not exists captures_one_active on captures (container_id)
-            where status in ('requested', 'running');
+        create index captures_container on captures (container_id, capture_id);
+        create unique index captures_one_active on captures (container_id) where status in ('requested', 'running');
         """;
 
-    private static string Columns(IEnumerable<SampleColumn> columns) =>
-        string.Join(",\n            ", columns.Select(c => $"{c.Column,-23} double precision"));
+    private static string Columns(IEnumerable<SampleColumn> columns, int version) =>
+        string.Join(",\n            ", columns.Where(c => c.Since == version).Select(c => $"{c.Column,-23} double precision"));
 
-    public static async Task EnsureAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    // Brings the database to this build's schema, under a lock so that dashboard replicas starting together migrate
+    // it once. Only the dashboard (and the documentation's demo seeder) calls this: agents never change the schema.
+    public static async Task MigrateAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using (var check = new NpgsqlCommand("select obj_description(to_regclass('hosts'), 'pg_class')", connection))
-        {
-            if (await check.ExecuteScalarAsync(cancellationToken) is Version)
-            {
-                return;
-            }
-        }
-
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-        await using (var lockCommand = new NpgsqlCommand("select pg_advisory_xact_lock(@key)", connection, transaction))
+        await using (var command = new NpgsqlCommand("select pg_advisory_xact_lock(@key)", connection, transaction))
         {
-            lockCommand.Parameters.AddWithValue("key", SchemaLockKey);
-            await lockCommand.ExecuteNonQueryAsync(cancellationToken);
+            command.Parameters.AddWithValue("key", MigrationLockKey);
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        // Another registering agent may have migrated while this session waited for the lock.
-        await using (var check = new NpgsqlCommand("select obj_description(to_regclass('hosts'), 'pg_class')", connection, transaction))
+        await using (var command = new NpgsqlCommand(
+            "select to_regclass('schema_migrations') is null and to_regclass('hosts') is not null", connection, transaction))
         {
-            if (await check.ExecuteScalarAsync(cancellationToken) is Version)
+            if (await command.ExecuteScalarAsync(cancellationToken) is true)
             {
-                await transaction.CommitAsync(cancellationToken);
-                return;
+                throw new SchemaException(
+                    "The database has a 'hosts' table that Sounding's migrations didn't create. Point Sounding at an empty database, or drop its tables.");
             }
         }
 
-        await using (var command = new NpgsqlCommand($"{Sql}\ncomment on table hosts is '{Version}';", connection, transaction))
+        await using (var command = new NpgsqlCommand("""
+            create table if not exists schema_migrations (
+                applied_at  timestamptz not null default now(),
+                version     int primary key,
+                agents_from int not null,
+                name        text not null,
+                checksum    text not null
+            )
+            """, connection, transaction))
         {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        var applied = new Dictionary<int, string>();
+        await using (var command = new NpgsqlCommand("select version, checksum from schema_migrations", connection, transaction))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                applied[reader.GetInt32(0)] = reader.GetString(1);
+            }
+        }
+
+        if (applied.Keys.Where(v => v > Version).DefaultIfEmpty().Max() is > 0 and var newer)
+        {
+            throw new SchemaException(
+                $"The database schema is at version {newer}, newer than this dashboard's ({Version}). Upgrade the dashboard.");
+        }
+
+        foreach (var migration in Migrations)
+        {
+            if (applied.TryGetValue(migration.Version, out var checksum))
+            {
+                if (checksum != migration.Checksum)
+                {
+                    throw new SchemaException(
+                        $"Schema version {migration.Version} in the database differs from the one this dashboard applies: the schema was changed outside Sounding.");
+                }
+
+                continue;
+            }
+
+            await using var command = new NpgsqlCommand($"""
+                {migration.Sql};
+                insert into schema_migrations (version, agents_from, name, checksum) values (@version, @agentsFrom, @name, @checksum);
+                """, connection, transaction);
+            command.Parameters.AddWithValue("version", migration.Version);
+            command.Parameters.AddWithValue("agentsFrom", migration.AgentsFrom);
+            command.Parameters.AddWithValue("name", migration.Name);
+            command.Parameters.AddWithValue("checksum", migration.Checksum);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
     }
+
+    // Whether an agent of this build can write to the database, and the schema version it writes to.
+    // Asked once per connection, and every tick while the schema is missing: so without an error each time.
+    public static async Task<SchemaStatus> CheckAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using (var exists = new NpgsqlCommand("select to_regclass('schema_migrations') is not null", connection))
+        {
+            if (await exists.ExecuteScalarAsync(cancellationToken) is not true) return new SchemaStatus(SchemaState.Missing, 0);
+        }
+
+        await using var command = new NpgsqlCommand("select max(version), max(agents_from) from schema_migrations", connection);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        if (reader.IsDBNull(0)) return new SchemaStatus(SchemaState.Missing, 0);
+        var version = reader.GetInt32(0);
+        return version < AgentMinimum ? new SchemaStatus(SchemaState.DatabaseTooOld, version)
+            : Version < reader.GetInt32(1) ? new SchemaStatus(SchemaState.AgentTooOld, version)
+            : new SchemaStatus(SchemaState.Ready, Math.Min(version, Version));
+    }
+
+    // What an agent needs when it connects as its own restricted role: it writes its samples, keeps its host's and
+    // container's rows current and claims captures, but can't change the schema or delete anything. Partitions are
+    // reached through their parent table, whose privileges are the ones checked.
+    private static readonly (string Privileges, string[] Tables)[] AgentPrivileges =
+    [
+        ("select", ["schema_migrations"]),
+        ("select, insert, update", ["hosts", "containers", "host_parts"]),
+        ("select, insert", ["host_samples", "container_samples", "process_samples"]),
+        ("insert", ["events"]),
+        ("select, update", ["captures"]),
+    ];
+
+    public static async Task GrantAgentAsync(NpgsqlDataSource dataSource, string role, CancellationToken cancellationToken)
+    {
+        string schema;
+        await using (var current = dataSource.CreateCommand("select current_schema()"))
+        {
+            schema = (string)(await current.ExecuteScalarAsync(cancellationToken))!;
+        }
+
+        // Under the migration lock: PostgreSQL fails concurrent grants on one object ("tuple concurrently updated").
+        var grantee = Identifier(role);
+        var sql = new StringBuilder("begin;\nselect pg_advisory_xact_lock(").Append(MigrationLockKey).Append(");\n")
+            .Append("grant usage on schema ").Append(Identifier(schema)).Append(" to ").Append(grantee).Append(";\n");
+        foreach (var (privileges, tables) in AgentPrivileges)
+        {
+            sql.Append("grant ").Append(privileges).Append(" on ").AppendJoin(", ", tables).Append(" to ").Append(grantee).Append(";\n");
+        }
+
+        sql.Append("commit;");
+
+        await using var command = dataSource.CreateCommand(sql.ToString());
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static string Identifier(string name) => "\"" + name.Replace("\"", "\"\"") + "\"";
 }

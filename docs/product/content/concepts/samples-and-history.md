@@ -26,10 +26,12 @@ Choose **1m**, **5m**, **15m**, **1h**, **6h**, or **24h** in the header. Each c
 ranges average more samples into each point: in the 1-hour range, each point is the average of 20 seconds, and in the
 24-hour range, of 8 minutes. Select a shorter range to inspect a brief spike.
 
-The default retention target is 24 hours. Running host-sampling agents prune older samples, events, and captures
-periodically. If all those agents stop, the dashboard alone doesn't delete old data; cleanup resumes when eligible
-agents report again. Retention isn't an exact deletion deadline. See `SOUNDING_RETENTION_MINUTES` in
-[configuration settings](../reference/configuration.md#sampling-and-history).
+Sounding keeps 24 hours of samples, events, and captures by default. The dashboard deletes older data every minute,
+samples an hour at a time, so up to an hour more is kept. While no dashboard runs, nothing is deleted; it catches up
+when one starts. See `SOUNDING_RETENTION_HOURS` in [configuration settings](../reference/configuration.md#history).
+
+If an agent can't reach the database, it holds its samples in memory, by default for 15 minutes, and writes them once
+it can: the charts show no gap. A longer outage leaves a gap for the samples it had to drop.
 
 ## Missing values
 
@@ -38,7 +40,7 @@ Not every figure is available on every machine or container. The dashboard shows
 - **–** or **Not available**, with the reason when it's known, when Sounding can't read a value. Kernel versions, virtual
   machines, and container permissions all affect what's readable.
 - **A gap in a chart** when samples are missing, for example while the container was stopped or couldn't reach the
-  database.
+  database for longer than its agent holds samples in memory.
 
 Neither means zero. A missing value says nothing about how much of the resource was used.
 

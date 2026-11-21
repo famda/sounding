@@ -23,7 +23,10 @@ toward that container. It also sets `CUDA_INJECTION64_PATH` to measure GPU use, 
 
 ## What happens if the agent or the database fails?
 
-Your application keeps running. Only the monitoring stops: figures taken while the database is unreachable are lost.
+Your application keeps running. If the agent fails, only the monitoring of that container stops. If the database is
+unreachable, each agent keeps measuring and holds its figures in memory, by default for 15 minutes, then writes them
+once the database is back; figures older than that are dropped. See `SOUNDING_BUFFER_MINUTES` in
+[configuration settings](../reference/configuration.md#sampling-and-history).
 
 ## How much does the agent cost?
 

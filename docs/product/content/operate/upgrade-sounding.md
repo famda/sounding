@@ -22,8 +22,10 @@ version and what changed.
 
 ## Upgrade
 
-Back up the database before upgrading. Schema updates are automatic, but they don't always preserve every kind of
-history: the current migration from older JSON-backed sample tables deletes the old host and container chart samples.
+Back up the database before upgrading. Upgrade the dashboard first: when it starts, it updates Sounding's tables for
+its version, keeping your history. Then upgrade the agents. Meanwhile, agents of the other version keep reporting the
+figures both versions have. If a release changes the tables in a way an agent can't write to, that agent holds its
+figures in memory, and its log says whether to upgrade the agent or the dashboard.
 
 ### With Docker Compose
 
@@ -61,9 +63,8 @@ choose when to upgrade, set the version tags in `sounding.yaml` and `node-agent.
 Each replaced pod is a new container in the dashboard; see
 [Sounding on Kubernetes](../concepts/kubernetes.md#hosts-and-containers).
 
-The database schema is updated automatically the first time the new version connects. To inspect history removed by
-the migration, restore a backup to a separate database and use the version tags of the Sounding release you ran before. Connecting the
-new version to that restored database applies the migration again.
+A dashboard never runs against tables newer than its own version: if you go back to an older dashboard, it stops and
+its log says to upgrade it. To return to an older version, restore the backup you took before upgrading.
 
 After upgrading, open a workload you just updated. Select **1m** on its **CPU** page and check that new samples
 continue to appear.

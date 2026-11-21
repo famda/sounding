@@ -21,6 +21,8 @@ The dashboard has no built-in sign-in. Anyone who can reach it can view monitori
 ## Protect the database
 
 - Allow only the agents, the dashboard, and your administrators to connect, with strong credentials and firewall rules.
+- Give the agents a user of their own that can't delete data or change tables: every monitored container holds its
+  connection string. See [give the agents their own user](set-up-the-database.md#give-the-agents-their-own-user).
 - Keep connection strings out of source code and screenshots.
 - Require encryption: see [protect the connection](set-up-the-database.md#protect-the-connection).
 
@@ -45,9 +47,9 @@ only to containers that need it. Docker commonly grants `NET_RAW` by default. Se
 
 ## Retention isn't a security boundary
 
-Sounding's default retention target is 24 hours, with cleanup performed by running host-sampling agents. If those agents
-stop, old data can remain; see [history cleanup](../concepts/samples-and-history.md#history). Copies made outside the
-database aren't deleted: database backups and replicas, downloaded captures, and screenshots. Apply your own rules to those.
+Sounding keeps 24 hours of data by default, and the dashboard deletes what is older. While no dashboard runs, old data
+remains; see [history](../concepts/samples-and-history.md#history). Copies made outside the database aren't deleted:
+database backups and replicas, downloaded captures, and screenshots. Apply your own rules to those.
 
 ## Next steps
 
